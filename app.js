@@ -18,6 +18,8 @@
   const sendersEl = $('senders');
   const extras = $('extras');
   const againBtn = $('againBtn');
+  const anonToggle = $('anonToggle');
+  const exportBtn = $('exportBtn');
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const numberFmt = new Intl.NumberFormat();
@@ -64,13 +66,34 @@
   });
   sampleBtn.addEventListener('click', () => {
     const result = WhatsAppParser.parse(SAMPLE);
-    render('Sample chat.txt', new Blob([SAMPLE]).size, result);
+    render('Sample chat.txt', new Blob([SAMPLE]).size, result, SAMPLE);
   });
   errorSampleBtn.addEventListener('click', () => {
     const result = WhatsAppParser.parse(SAMPLE);
-    render('Sample chat.txt', new Blob([SAMPLE]).size, result);
+    render('Sample chat.txt', new Blob([SAMPLE]).size, result, SAMPLE);
   });
   againBtn.addEventListener('click', reset);
+  anonToggle.addEventListener('change', () => {
+    if (!current) return;
+    current.anon = anonToggle.checked;
+    buildSenderRows(current.result); // re-label the sender rows; strip/colors are keyed by real sender and stay as they are
+  });
+  exportBtn.addEventListener('click', () => {
+    if (!current) return;
+    // Export follows the toggle: anonymized view -> anonymized file, plain view -> original names.
+    const text = WhatsAppParser.toText(current.result, { senderMap: current.anon ? current.map : null });
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    // Anonymized exports get a neutral file name — real exports are often
+    // called "WhatsApp Chat with Alex.txt", which would leak the name.
+    a.download = (current.anon ? 'anonymized-chat' : (current.name || 'chat').replace(/\.txt$/i, '')) + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
 
   let dragDepth = 0;
   window.addEventListener('dragenter', (e) => {
@@ -112,7 +135,7 @@
       showError('No messages found in that file. A WhatsApp export has one message per line, like: 12/05/2025, 18:42 - Alex: hi. Make sure you exported the chat as a .txt (Without media).');
       return;
     }
-    render(file.name, file.size, result);
+    render(file.name, file.size, result, text);
   }
 
   function showError(message) {
@@ -126,15 +149,24 @@
     errorSection.hidden = true;
     resultSection.hidden = true;
     dropSection.hidden = false;
+    anonToggle.checked = false;
     dropZone.focus();
   }
 
   /* ---------- rendering ---------- */
 
-  let current = null; // { result, colors: Map<sender, color> }
+  let current = null; // { result, colors: Map<sender, color>, map: Map<sender, label>, anon, name, rawText }
 
-  function render(name, size, result) {
-    current = { result, colors: new Map() };
+  function render(name, size, result, rawText) {
+    current = {
+      result,
+      colors: new Map(),
+      map: WhatsAppParser.senderMap(result),
+      anon: false,
+      name,
+      rawText,
+    };
+    anonToggle.checked = false;
     result.senders.forEach((s, i) => current.colors.set(s.sender, PALETTE[i % PALETTE.length]));
 
     dropSection.hidden = true;
@@ -197,10 +229,11 @@
       chip.className = 'chip';
       chip.style.background = current.colors.get(s.sender);
 
+      const label = current.anon && current.map.get(s.sender) ? current.map.get(s.sender) : s.sender;
       const nameEl = document.createElement('span');
       nameEl.className = 'name';
-      nameEl.textContent = s.sender;
-      nameEl.title = s.sender;
+      nameEl.textContent = label;
+      nameEl.title = label;
 
       const count = document.createElement('span');
       count.className = 'count';
@@ -309,7 +342,7 @@
   // ?sample loads the bundled demo chat (also handy for sharing a preview).
   if (/[?&]sample\b/.test(location.search)) {
     const result = WhatsAppParser.parse(SAMPLE);
-    render('Sample chat.txt', new Blob([SAMPLE]).size, result);
+    render('Sample chat.txt', new Blob([SAMPLE]).size, result, SAMPLE);
   }
 
   // Tiny hook so tests (and the curious) can feed text straight in:
@@ -317,6 +350,6 @@
   window.__countText = (name, text) => {
     const result = WhatsAppParser.parse(text);
     if (!result.total) { showError('No messages found in that text.'); return; }
-    render(name, new Blob([text]).size, result);
+    render(name, new Blob([text]).size, result, text);
   };
 })();

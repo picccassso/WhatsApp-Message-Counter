@@ -214,8 +214,16 @@ body {
 
 .extras { color: var(--muted); font-size: 0.85rem; margin: 1rem 0 0; }
 
-.again-btn {
+/* actions row: anonymize toggle + export + again */
+.actions {
   margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+}
+
+.again-btn {
   background: none;
   border: 1px solid var(--hairline);
   color: var(--muted);
@@ -227,6 +235,49 @@ body {
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .again-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+/* anonymize switch */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.9rem;
+  user-select: none;
+}
+.switch input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+.switch .track {
+  flex: none;
+  width: 34px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--hairline);
+  position: relative;
+  transition: background 0.15s ease;
+}
+.switch .track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.15s ease;
+}
+.switch input:checked + .track { background: var(--accent); }
+.switch input:checked + .track::after { transform: translateX(14px); }
+.switch input:focus-visible + .track {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 
 .foot {
   margin-top: auto;

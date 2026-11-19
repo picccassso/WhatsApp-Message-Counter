@@ -16,6 +16,15 @@ Open `index.html` in any modern browser (double-click works, no build step), the
 
 "Without media" gives you a plain `.txt`. (A `.zip` from "Include media" isn't text — the app will tell you if you drop one.)
 
+### Anonymizing and re-exporting
+
+On the results screen:
+
+- **Anonymize names** — flip the switch and every sender is shown as `Person A`, `Person B`, … (in order of who messaged first). Colors, counts and the strip are unchanged; flip it back to see real names again.
+- **Export .txt** — downloads the chat as a `.txt` in its original WhatsApp line layout, so you can drop it back into this app (or share it) and get the same counts. If the anonymize switch is on, the export is anonymized too: sender fields become `Person A/B/…`, and names mentioned in system lines (`Alex changed the subject…`) and inside message text are replaced as well. Anonymized downloads are always named `anonymized-chat.txt` — real exports are often called `WhatsApp Chat with Alex.txt`, and that file name would leak the name.
+
+Anonymization is best-effort: it replaces exact, whole-word, case-sensitive matches of each sender's name (so `Sam` is replaced but `Samantha` is left alone). Nicknames or misspelled mentions in free text are not caught — check the export before sharing it.
+
 ## What counts as a message
 
 One line that starts with a timestamp and a sender, e.g.
@@ -31,11 +40,11 @@ Handled: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h and 
 ## Files
 
 - `index.html`, `styles.css`, `app.js` — the app (vanilla, no dependencies)
-- `parser.js` — the export parser, also loadable in node for tests
+- `parser.js` — the export parser plus `senderMap()` / `toText()` for anonymized re-exports; also loadable in node for tests
 - `test/parser.test.js` — run with `node test/parser.test.js`
 - `test/fixtures/` — sample exports used by the tests
 - `test/preview-big.html` — dev preview that renders `fixtures/big_100k.txt`
 
 ## Privacy
 
-The file is read with the browser's File API and never leaves your device. There is no network call except the Google Fonts stylesheet (the app works offline with system fonts).
+The file is read with the browser's File API and never leaves your device — counting and exporting both happen locally. There is no network call except the Google Fonts stylesheet (the app works offline with system fonts).

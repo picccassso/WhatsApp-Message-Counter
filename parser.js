@@ -12,6 +12,10 @@
  *   are appended to the previous message (they don't count as new messages).
  *   Invisible LTR/RTL marks (‎ etc.) and BOM are stripped first.
  *
+ * Also exported: senderMap(result) (anonymized "Person A, B, …" labels) and
+ * toText(result, { senderMap }) which rebuilds the export file line by line
+ * in its original style — handy for re-exporting, optionally anonymized.
+ *
  * Works in the browser (window.WhatsAppParser) and in node (module.exports)
  * so the parsing logic can be unit-tested.
  */
@@ -44,9 +48,8 @@
     const clean = String(text).replace(/^\uFEFF/, '').replace(INVISIBLE_RE, '');
     const lines = clean.split(/\r\n|\r|\n/);
 
-    const messages = []; // { ts, sender, text, media }
-    const notes = [];    // system lines (encryption notices, "X left", ...)
-    let current = null;  // last entry, so continuation lines can attach to it
+    const entries = []; // every timestamped line, in file order: { kind: 'message'|'note', ts, bracketed, sender?, text, media? }
+    let current = null; // last entry, so continuation lines can attach to it
 
     for (const raw of lines) {
       if (!raw.trim()) continue;
@@ -56,27 +59,37 @@
         // A sender name never contains a quote; system lines like
         // 'changed the subject to "a: b"' do — don't mistake them for messages.
         current = {
+          kind: 'message',
           ts: m[1].replace(/[[\]]/g, '').trim(),
+          bracketed: m[1].charAt(0) === '[',
           sender: m[2].trim(),
           text: m[3],
           media: MEDIA_RE.test(m[3]),
         };
-        messages.push(current);
+        entries.push(current);
         continue;
       }
 
       const s = TIMESTAMPED_RE.exec(raw);
       if (s) {
-        current = { text: s[2] };
-        notes.push(current);
+        current = {
+          kind: 'note',
+          ts: s[1].replace(/[[\]]/g, '').trim(),
+          bracketed: s[1].charAt(0) === '[',
+          text: s[2],
+        };
+        entries.push(current);
         continue;
       }
 
       if (current) {
         current.text += '\n' + raw;
-        if (current.sender !== undefined) current.media = MEDIA_RE.test(current.text);
+        if (current.kind === 'message') current.media = MEDIA_RE.test(current.text);
       }
     }
+
+    const messages = entries.filter((e) => e.kind === 'message');
+    const notes = entries.filter((e) => e.kind === 'note');
 
     const bySender = new Map();
     let media = 0;
@@ -99,8 +112,70 @@
       last: messages.length ? messages[messages.length - 1].ts : null,
       senders: Array.from(bySender.values()).sort((a, b) => b.count - a.count),
       messages, // kept for the rhythm strip: [{ sender, text, ... }]
+      entries,  // every timestamped line in file order — used by toText() to rebuild the export
     };
   }
 
-  return { parse };
+  function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // "Person A".."Person Z", then "Person AA", "Person AB", … (spreadsheet-style letters).
+  function labelForIndex(i) {
+    let s = '';
+    for (i += 1; i > 0; i = Math.floor((i - 1) / 26)) {
+      s = String.fromCharCode(65 + ((i - 1) % 26)) + s;
+    }
+    return 'Person ' + s;
+  }
+
+  // Map each real sender to an anonymized label, in order of first appearance in the chat.
+  function senderMap(result) {
+    const map = new Map();
+    for (const m of result.messages) {
+      if (!map.has(m.sender)) map.set(m.sender, labelForIndex(map.size));
+    }
+    return map;
+  }
+
+  // Replace whole-word, case-sensitive mentions of the mapped names in free
+  // text. One alternation pass (longest names first) so replacements can't
+  // cascade; Unicode-aware boundaries so accented names work and "Sam" never
+  // matches inside "Samantha". One-letter names are skipped here — replacing
+  // a single letter would mangle ordinary prose (toText still always replaces
+  // the sender field itself).
+  function replaceNames(text, map) {
+    const names = Array.from(map.keys())
+      .filter((n) => n.length >= 2)
+      .sort((a, b) => b.length - a.length);
+    if (!names.length) return text;
+    const re = new RegExp(
+      '(?<![\\p{L}\\p{N}_])(' + names.map(escapeRegExp).join('|') + ')(?![\\p{L}\\p{N}_])',
+      'gu'
+    );
+    return text.replace(re, (whole) => map.get(whole));
+  }
+
+  // Rebuild the export file from a parse result, line by line, keeping each
+  // line's original style (Android "ts - Sender: text" vs iOS "[ts] Sender: text").
+  // Pass { senderMap } to anonymize: the sender field always becomes the label,
+  // and names mentioned in message bodies and system lines are replaced too.
+  function toText(result, opts) {
+    const map = (opts && opts.senderMap) || null;
+    const lines = [];
+    for (const e of result.entries) {
+      const ts = e.bracketed ? '[' + e.ts + ']' : e.ts;
+      if (e.kind === 'message') {
+        const sender = map ? map.get(e.sender) || e.sender : e.sender;
+        const text = map ? replaceNames(e.text, map) : e.text;
+        lines.push(e.bracketed ? ts + ' ' + sender + ': ' + text : ts + ' - ' + sender + ': ' + text);
+      } else {
+        const text = map ? replaceNames(e.text, map) : e.text;
+        lines.push(e.bracketed ? ts + ' ' + text : ts + ' - ' + text);
+      }
+    }
+    return lines.length ? lines.join('\n') + '\n' : '';
+  }
+
+  return { parse, senderMap, toText };
 });

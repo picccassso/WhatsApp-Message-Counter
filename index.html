@@ -54,7 +54,15 @@
       <ul id="senders" class="senders"></ul>
       <p id="extras" class="extras"></p>
 
-      <button type="button" id="againBtn" class="again-btn">Count another file</button>
+      <div class="actions">
+        <label class="switch">
+          <input type="checkbox" id="anonToggle">
+          <span class="track" aria-hidden="true"></span>
+          <span>Anonymize names</span>
+        </label>
+        <button type="button" id="exportBtn" class="again-btn">Export .txt</button>
+        <button type="button" id="againBtn" class="again-btn">Count another file</button>
+      </div>
     </section>
 
     <footer class="foot">Everything runs in your browser — your chat never leaves this device.</footer>
