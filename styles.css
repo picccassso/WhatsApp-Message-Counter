@@ -1,0 +1,252 @@
+/* Message counter — WhatsApp night palette, one column, one number. */
+
+:root {
+  --bg: #0b141a;
+  --panel: #111b21;
+  --bubble-in: #202c33;
+  --bubble-out: #005c4b;
+  --accent: #00a884;
+  --text: #e9edef;
+  --muted: #8696a0;
+  --hairline: #2a3942;
+  --receipts: #53bdeb;
+  --radius: 18px;
+}
+
+* { box-sizing: border-box; }
+
+[hidden] { display: none !important; }
+
+html { color-scheme: dark; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--accent); color: #06231c; }
+
+.page {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.75rem 1.25rem 4rem;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* header */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.25rem 0.25rem 2.5rem;
+}
+.presence {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+.wordmark { font-weight: 500; font-size: 0.95rem; letter-spacing: 0.01em; }
+
+/* drop zone (empty state) */
+.drop-section {
+  margin: auto 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+.drop-zone {
+  width: 100%;
+  padding: 3.5rem 2rem;
+  background: var(--bubble-in);
+  border: 1.5px dashed var(--hairline);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.drop-zone:hover { border-color: var(--muted); }
+.drop-zone.dragging {
+  border-color: var(--accent);
+  background: #1b2b33;
+  transform: scale(1.01);
+}
+.drop-title { font-size: 1.45rem; font-weight: 500; letter-spacing: -0.01em; }
+.drop-sub { color: var(--muted); font-size: 0.95rem; }
+.drop-hint { color: var(--muted); font-size: 0.85rem; max-width: 34rem; margin: 0; }
+
+.text-btn {
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--accent);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.text-btn:hover { text-decoration: underline; }
+
+/* error bubble */
+.error-section { margin: auto 0; }
+.bubble { position: relative; border-radius: var(--radius); }
+.bubble-in {
+  background: var(--bubble-in);
+  padding: 1.4rem 1.6rem;
+}
+.bubble-in::after {
+  content: "";
+  position: absolute;
+  left: -7px; bottom: 0;
+  width: 16px; height: 16px;
+  background: var(--bubble-in);
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+.error-text { margin: 0 0 0.75rem; }
+
+/* result */
+.result-section { margin: 2.75rem 0 auto; animation: rise 0.45s ease both; }
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+.file-name {
+  margin: 0;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.file-name .size { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 0.5rem; }
+.file-sub { margin: 0.15rem 0 1.75rem; color: var(--muted); font-size: 0.85rem; }
+
+/* the answer: an outgoing bubble holding the number */
+.answer {
+  background: var(--bubble-out);
+  display: inline-flex;
+  flex-direction: column;
+  padding: 1.4rem 1.8rem 0.7rem;
+  max-width: 100%;
+}
+.answer::after {
+  content: "";
+  position: absolute;
+  right: -7px; bottom: 0;
+  width: 16px; height: 16px;
+  background: var(--bubble-out);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.answer-num {
+  font-size: clamp(4.2rem, 16vw, 7.5rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  align-self: flex-start;
+  overflow-wrap: anywhere;
+}
+.answer-label {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgba(233, 237, 239, 0.75);
+  font-size: 0.85rem;
+  margin-top: 0.4rem;
+}
+.receipts { color: var(--receipts); flex: none; }
+
+/* rhythm strip */
+.strip {
+  display: block;
+  width: 100%;
+  height: 72px;
+  margin-top: 2rem;
+}
+.strip-caption { color: var(--muted); font-size: 0.8rem; margin: 0.4rem 0 0; }
+
+/* sender rows */
+.senders {
+  list-style: none;
+  margin: 1.75rem 0 0;
+  padding: 0;
+}
+.sender {
+  display: grid;
+  grid-template-columns: 10px 1fr auto;
+  column-gap: 0.7rem;
+  align-items: center;
+  padding: 0.8rem 0.5rem;
+  border-top: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.sender:last-child { border-bottom: 1px solid var(--hairline); }
+.sender:hover, .sender.active { background: var(--panel); }
+.sender .chip { width: 10px; height: 10px; border-radius: 50%; }
+.sender .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.sender .count { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.sender .bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 0.55rem;
+  background: #1b252c;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.sender .bar i { display: block; height: 100%; border-radius: 2px; }
+
+.extras { color: var(--muted); font-size: 0.85rem; margin: 1rem 0 0; }
+
+.again-btn {
+  margin-top: 2rem;
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.6rem 1.2rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.again-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+.foot {
+  margin-top: auto;
+  padding-top: 3rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* focus + motion */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .result-section { animation: none; }
+  .drop-zone { transition: none; }
+}
+
+@media (max-width: 480px) {
+  .drop-zone { padding: 2.5rem 1.25rem; }
+  .answer { padding: 1.1rem 1.3rem 0.6rem; }
+}

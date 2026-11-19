@@ -1,0 +1,6 @@
+﻿‎[12/05/2025, 18:42:11] Alex: first
+‎13/05/2025, 10:00 - Sam: second
+continuation without timestamp
+13/05/2025, 10:01 - You changed the subject to "Old: thing"
+13/05/2025, 10:02 - Alex: 3.14 is pi: true
+13/05/2025, 10:03 - Alex: done
