@@ -1,0 +1,118 @@
+/* Node test for words.js — run: node test/words.test.js */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const { parse } = require('../parser.js');
+const { tokenize, analyze, BOOKS, bookReport } = require('../words.js');
+
+let failures = 0;
+function check(name, actual, expected) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected);
+  if (!ok) {
+    failures++;
+    console.error(`FAIL ${name}\n  expected: ${JSON.stringify(expected)}\n  actual:   ${JSON.stringify(actual)}`);
+  } else {
+    console.log(`ok   ${name}`);
+  }
+}
+
+function load(f) {
+  return fs.readFileSync(path.join(__dirname, 'fixtures', f), 'utf8');
+}
+
+/* ---------- tokenize ---------- */
+
+check('tokenize lowercases and strips punctuation', tokenize('Hello, HELLO! Well...'), ['hello', 'hello', 'well']);
+check('contractions and hyphens stay one word', tokenize("don't stop well-known"), ["don't", 'stop', 'well-known']);
+check('pure numbers are dropped', tokenize('train at 8, by 2025, platform 9'), ['train', 'at', 'by', 'platform']);
+check('unicode letters work', tokenize('Naïve café Über'), ['naïve', 'café', 'über']);
+check('emoji are not words', tokenize('lol 😂🔥 ok'), ['lol', 'ok']);
+check('empty and punctuation-only', [tokenize(''), tokenize('... --- !!!')], [[], []]);
+
+/* ---------- analyze ---------- */
+
+const chat = [
+  '12/05/2025, 18:43 - Alex: lol hi lol',
+  '12/05/2025, 18:44 - Sam: hi',
+  '12/05/2025, 18:45 - Alex: <Media omitted>',
+  '12/05/2025, 18:46 - Sam: IMG-20250512-WA0004.jpg (file attached)',
+  '12/05/2025, 18:47 - Alex: hi 😂',
+].join('\n');
+const w = analyze(parse(chat).messages);
+
+check('total words (media skipped)', w.totalWords, 5); // lol hi lol + hi + hi
+check('unique words', w.uniqueWords, 2); // lol, hi
+check('messageCount excludes media', w.messageCount, 3);
+check('mediaSkipped', w.mediaSkipped, 2);
+check('ratio', w.ratio, 2 / 5);
+check('top words sorted by count', w.top, [{ word: 'hi', count: 3 }, { word: 'lol', count: 2 }]);
+check('top emoji', w.topEmoji, [{ emoji: '😂', count: 1 }]);
+check('senders ranked by unique words', w.senders.map((s) => s.sender), ['Alex', 'Sam']);
+const alex = w.senders.find((s) => s.sender === 'Alex');
+check('alex total/unique', [alex.total, alex.unique], [4, 2]);
+check('signature is most-used word', alex.signature, 'hi'); // hi ×2 beats lol ×2 alphabetically? hi count 2, lol count 2 -> tie -> 'hi' < 'lol'
+check('per-sender top words', alex.top, [{ word: 'hi', count: 2 }, { word: 'lol', count: 2 }]);
+
+// all-media chat -> empty analysis, no crashes
+{
+  const r = parse('12/05/2025, 18:43 - Alex: <Media omitted>\n12/05/2025, 18:44 - Sam: IMG-1.jpg (file attached)\n');
+  const a = analyze(r.messages);
+  check('all-media totalWords', a.totalWords, 0);
+  check('all-media uniqueWords', a.uniqueWords, 0);
+  check('all-media ratio', a.ratio, 0);
+  check('all-media senders empty', a.senders, []);
+  check('all-media mediaSkipped', a.mediaSkipped, 2);
+}
+
+/* ---------- bookReport ---------- */
+
+check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 230, 6500, 10500, 30000]);
+
+{
+  const r = bookReport(0);
+  check('0 words: nothing writable', r.writable, null);
+  check('0 words: all pct 0', r.books.map((b) => b.pct), [0, 0, 0, 0, 0]);
+}
+{
+  const r = bookReport(49);
+  check('49 words: still nothing writable', r.writable, null);
+}
+{
+  const r = bookReport(50);
+  check('50 words: Green Eggs and Ham writable', r.writable && r.writable.title, 'Green Eggs and Ham');
+  check('covered book pct capped at 100', r.books[0].pct, 100);
+  check('covered flag', r.books[0].covered, true);
+  check('next book not covered', r.books[1].covered, false);
+}
+{
+  const r = bookReport(230);
+  check('230 words: Cat in the Hat writable', r.writable && r.writable.title, 'The Cat in the Hat');
+}
+{
+  const r = bookReport(100000);
+  check('100k words: LOTR writable', r.writable && r.writable.title, 'The Lord of the Rings');
+  check('all covered', r.books.every((b) => b.covered), true);
+}
+{
+  const r = bookReport(115); // halfway between 50 and 230
+  check('pct is share of the book vocab', Math.round(r.books[1].pct), 50);
+}
+
+/* ---------- big fixture: runs fast and sane on 100k messages ---------- */
+
+{
+  const big = analyze(parse(load('big_100k.txt')).messages);
+  check('big totalWords > 0', big.totalWords > 0, true);
+  check('big uniqueWords in range', big.uniqueWords > 0 && big.uniqueWords < big.totalWords, true);
+  check('big senders', big.senders.map((s) => s.sender).sort(), ['+40 712 345 678', 'Alex', 'Priya', 'Sam']);
+  check('big mediaSkipped >= 1', big.mediaSkipped >= 1, true);
+  check('big top sorted desc', big.top.every((t, i) => i === 0 || big.top[i - 1].count >= t.count), true);
+  check('big top capped at 12', big.top.length <= 12, true);
+  check('big per-sender top capped at 5', big.senders.every((s) => s.top.length <= 5), true);
+}
+
+if (failures) {
+  console.error(`\n${failures} test(s) failed`);
+  process.exit(1);
+}
+console.log('\nall tests passed');

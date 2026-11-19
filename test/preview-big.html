@@ -44,11 +44,37 @@
       <p class="strip-caption">one tick per message, colored by sender — hover a name to spotlight them</p>
       <ul id="senders" class="senders"></ul>
       <p id="extras" class="extras"></p>
-      <button type="button" id="againBtn" class="again-btn">Count another file</button>
+      <div class="actions">
+        <label class="switch">
+          <input type="checkbox" id="anonToggle">
+          <span class="track" aria-hidden="true"></span>
+          <span>Anonymize names</span>
+        </label>
+        <label class="switch">
+          <input type="checkbox" id="wordsToggle">
+          <span class="track" aria-hidden="true"></span>
+          <span>Word games 🎲</span>
+        </label>
+        <button type="button" id="exportBtn" class="again-btn">Export .txt</button>
+        <button type="button" id="againBtn" class="again-btn">Count another file</button>
+      </div>
+      <section id="wordSection" class="word-section" hidden aria-live="polite">
+        <h2 class="word-title">word games 🎲</h2>
+        <p class="word-sub" id="wordSub"></p>
+        <div id="wordStats" class="word-stats"></div>
+        <h3 class="word-h3">diversity leaderboard</h3>
+        <ul id="wordBoard" class="word-board"></ul>
+        <h3 class="word-h3">most used words</h3>
+        <div id="wordCloud" class="word-cloud"></div>
+        <h3 class="word-h3">the book bank</h3>
+        <p class="word-sub" id="bookNote"></p>
+        <ul id="bookBank" class="book-bank"></ul>
+      </section>
     </section>
     <footer class="foot">Everything runs in your browser — your chat never leaves this device.</footer>
   </main>
   <script src="../parser.js"></script>
+  <script src="../words.js"></script>
   <script src="../app.js"></script>
   <script>
     fetch('fixtures/big_100k.txt').then(r => r.text()).then(t => {

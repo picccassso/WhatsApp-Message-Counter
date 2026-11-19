@@ -20,6 +20,14 @@
   const againBtn = $('againBtn');
   const anonToggle = $('anonToggle');
   const exportBtn = $('exportBtn');
+  const wordsToggle = $('wordsToggle');
+  const wordSection = $('wordSection');
+  const wordSub = $('wordSub');
+  const wordStats = $('wordStats');
+  const wordBoard = $('wordBoard');
+  const wordCloud = $('wordCloud');
+  const bookNote = $('bookNote');
+  const bookBank = $('bookBank');
 
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const numberFmt = new Intl.NumberFormat();
@@ -77,6 +85,7 @@
     if (!current) return;
     current.anon = anonToggle.checked;
     buildSenderRows(current.result); // re-label the sender rows; strip/colors are keyed by real sender and stay as they are
+    if (!wordSection.hidden) renderWords(); // word games follow the anonymized labels too
   });
   exportBtn.addEventListener('click', () => {
     if (!current) return;
@@ -93,6 +102,18 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  wordsToggle.addEventListener('change', () => {
+    if (!current) return;
+    if (wordsToggle.checked) {
+      // The vocabulary analysis runs once per file, only when the section is opened.
+      if (!current.words) current.words = WhatsAppWords.analyze(current.result.messages);
+      renderWords();
+      wordSection.hidden = false;
+      wordSection.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    } else {
+      wordSection.hidden = true;
+    }
   });
 
   let dragDepth = 0;
@@ -150,6 +171,8 @@
     resultSection.hidden = true;
     dropSection.hidden = false;
     anonToggle.checked = false;
+    wordsToggle.checked = false;
+    wordSection.hidden = true;
     dropZone.focus();
   }
 
@@ -165,8 +188,11 @@
       anon: false,
       name,
       rawText,
+      words: null, // lazily computed vocabulary analysis (word games)
     };
     anonToggle.checked = false;
+    wordsToggle.checked = false;
+    wordSection.hidden = true;
     result.senders.forEach((s, i) => current.colors.set(s.sender, PALETTE[i % PALETTE.length]));
 
     dropSection.hidden = true;
@@ -261,6 +287,154 @@
     drawStrip(1, sender);
   }
 
+  /* ---------- word games ---------- */
+
+  function renderWords() {
+    const w = current.words;
+    const label = (s) => (current.anon && current.map.get(s)) || s;
+
+    wordSection.classList.toggle('empty', !w.totalWords);
+    wordSub.textContent = w.totalWords
+      ? `${numberFmt.format(w.totalWords)} words in ${numberFmt.format(w.messageCount)} messages` +
+        (w.mediaSkipped ? ` — ${numberFmt.format(w.mediaSkipped)} media message${w.mediaSkipped === 1 ? '' : 's'} skipped` : '')
+      : 'no words in this chat — just media and vibes 📷';
+    bookNote.textContent = '';
+
+    // stat chips
+    wordStats.textContent = '';
+    if (w.totalWords) {
+      const chips = [
+        [numberFmt.format(w.totalWords), 'words total'],
+        [numberFmt.format(w.uniqueWords), 'different words'],
+        [Math.round(w.ratio * 100) + '%', 'diversity (unique ÷ total)'],
+        [(w.totalWords / w.messageCount).toFixed(1), 'words per message'],
+      ];
+      if (w.topEmoji.length) chips.push([`${w.topEmoji[0].emoji} ×${numberFmt.format(w.topEmoji[0].count)}`, 'favourite emoji']);
+      for (const [value, caption] of chips) {
+        const box = document.createElement('div');
+        box.className = 'stat';
+        const num = document.createElement('span');
+        num.className = 'stat-num';
+        num.textContent = value;
+        const cap = document.createElement('span');
+        cap.className = 'stat-label';
+        cap.textContent = caption;
+        box.append(num, cap);
+        wordStats.appendChild(box);
+      }
+    }
+
+    // diversity leaderboard — senders ranked by vocabulary size
+    wordBoard.textContent = '';
+    const medals = ['🥇', '🥈', '🥉'];
+    const maxUnique = Math.max(1, ...w.senders.map((s) => s.unique));
+    w.senders.forEach((s, i) => {
+      const li = document.createElement('li');
+      li.className = 'word-row';
+
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = i < medals.length ? medals[i] : '#' + (i + 1);
+
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.background = current.colors.get(s.sender);
+
+      const who = document.createElement('span');
+      who.className = 'who';
+      const nameEl = document.createElement('span');
+      nameEl.className = 'name';
+      nameEl.textContent = label(s.sender);
+      nameEl.title = label(s.sender);
+      const sig = document.createElement('small');
+      sig.className = 'sig';
+      sig.textContent = s.signature
+        ? `signature “${s.signature}” ×${numberFmt.format(s.top[0].count)} · ${Math.round(s.ratio * 100)}% diverse`
+        : `${Math.round(s.ratio * 100)}% diverse`;
+      who.append(nameEl, sig);
+
+      const uniq = document.createElement('span');
+      uniq.className = 'count';
+      uniq.textContent = numberFmt.format(s.unique);
+      uniq.title = `${numberFmt.format(s.unique)} different words`;
+
+      const bar = document.createElement('span');
+      bar.className = 'bar';
+      const fill = document.createElement('i');
+      fill.style.width = ((s.unique / maxUnique) * 100).toFixed(2) + '%';
+      fill.style.background = current.colors.get(s.sender);
+      bar.appendChild(fill);
+
+      li.append(rank, chip, who, uniq, bar);
+      wordBoard.appendChild(li);
+    });
+
+    // most used words — a tiny cloud sized by frequency
+    wordCloud.textContent = '';
+    const maxCount = w.top.length ? w.top[0].count : 1;
+    for (const t of w.top) {
+      const chipEl = document.createElement('span');
+      chipEl.className = 'word-chip';
+      chipEl.style.fontSize = (0.8 + 1.2 * (t.count / maxCount)).toFixed(2) + 'rem';
+      const wordEl = document.createElement('span');
+      wordEl.textContent = t.word;
+      const countEl = document.createElement('small');
+      countEl.textContent = '×' + numberFmt.format(t.count);
+      chipEl.append(wordEl, countEl);
+      chipEl.title = `“${t.word}” — used ${numberFmt.format(t.count)} time${t.count === 1 ? '' : 's'}`;
+      wordCloud.appendChild(chipEl);
+    }
+
+    // the book bank — how much of each famous book this chat's words cover
+    const report = WhatsAppWords.bookReport(w.uniqueWords);
+    if (w.totalWords) {
+      if (report.writable) {
+        bookNote.textContent = `📚 with ${numberFmt.format(w.uniqueWords)} different words, this chat's word bank could have written ${report.writable.title} by ${report.writable.author}!`;
+      } else {
+        const next = report.books.find((b) => !b.covered);
+        if (next) {
+          bookNote.textContent = `📚 ${numberFmt.format(w.uniqueWords)} different words — ${Math.floor(next.pct)}% of the way to all the words in ${next.title}`;
+        }
+      }
+    }
+    bookBank.textContent = '';
+    for (const b of report.books) {
+      const li = document.createElement('li');
+      li.className = 'book';
+
+      const line = document.createElement('div');
+      line.className = 'book-line';
+      const title = document.createElement('span');
+      title.className = 'book-title';
+      title.append(b.title + ' ');
+      const author = document.createElement('span');
+      author.className = 'author';
+      author.textContent = b.author;
+      title.appendChild(author);
+      const pct = document.createElement('span');
+      pct.className = 'book-pct';
+      pct.textContent = b.covered
+        ? `✅ all ≈${numberFmt.format(b.uniqueWords)} words`
+        : `${Math.floor(b.pct)}% of ≈${numberFmt.format(b.uniqueWords)} words`;
+      line.append(title, pct);
+
+      const bar = document.createElement('span');
+      bar.className = 'bar';
+      const fill = document.createElement('i');
+      fill.style.width = b.pct.toFixed(2) + '%';
+      bar.appendChild(fill);
+
+      li.append(line, bar);
+      if (b.covered) {
+        const badge = document.createElement('p');
+        badge.className = 'book-badge';
+        badge.textContent = 'writable with this chat’s words';
+        li.appendChild(badge);
+      }
+      bookBank.appendChild(li);
+    }
+  }
+
   /* ---------- rhythm strip ---------- */
 
   function drawStrip(progress, highlightSender) {
@@ -339,10 +513,11 @@
     resizeTimer = setTimeout(() => drawStrip(1), 100);
   });
 
-  // ?sample loads the bundled demo chat (also handy for sharing a preview).
+  // ?sample loads the bundled demo chat (also handy for sharing a preview); add &words to open the word games too.
   if (/[?&]sample\b/.test(location.search)) {
     const result = WhatsAppParser.parse(SAMPLE);
     render('Sample chat.txt', new Blob([SAMPLE]).size, result, SAMPLE);
+    if (/[?&]words([&#]|$)/.test(location.search)) wordsToggle.click(); // deep-link: land with word games on
   }
 
   // Tiny hook so tests (and the curious) can feed text straight in:

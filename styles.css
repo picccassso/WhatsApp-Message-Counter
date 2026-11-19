@@ -279,6 +279,100 @@ body {
   outline-offset: 3px;
 }
 
+/* word games section (hidden until toggled on) */
+.word-section { margin-top: 2.5rem; animation: rise 0.35s ease both; }
+.word-title { margin: 0; font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }
+.word-sub { color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0; }
+.word-h3 {
+  margin: 2rem 0 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+.word-section.empty .word-stats,
+.word-section.empty .word-h3,
+.word-section.empty .word-board,
+.word-section.empty .word-cloud,
+.word-section.empty .book-bank { display: none; }
+
+.word-stats { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.25rem; }
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 14px;
+  padding: 0.65rem 1rem;
+  display: flex;
+  flex-direction: column;
+}
+.stat-num { font-weight: 700; font-size: 1.2rem; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.stat-label { color: var(--muted); font-size: 0.72rem; }
+
+/* diversity leaderboard — same row language as .sender */
+.word-board { list-style: none; margin: 0; padding: 0; }
+.word-row {
+  display: grid;
+  grid-template-columns: 1.5rem 10px 1fr auto;
+  column-gap: 0.7rem;
+  align-items: center;
+  padding: 0.8rem 0.5rem;
+  border-top: 1px solid var(--hairline);
+  border-radius: 8px;
+}
+.word-row:last-child { border-bottom: 1px solid var(--hairline); }
+.word-row .rank { color: var(--muted); font-size: 0.9rem; text-align: center; font-variant-numeric: tabular-nums; }
+.word-row .chip { width: 10px; height: 10px; border-radius: 50%; }
+.word-row .who { display: flex; flex-direction: column; min-width: 0; }
+.word-row .name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.word-row .sig { color: var(--muted); font-size: 0.78rem; }
+.word-row .count { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.95rem; }
+.word-row .bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  margin-top: 0.55rem;
+  background: #1b252c;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.word-row .bar i { display: block; height: 100%; border-radius: 2px; }
+
+/* most used words — mini cloud */
+.word-cloud { display: flex; flex-wrap: wrap; gap: 0.45rem 0.6rem; align-items: baseline; }
+.word-chip {
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+.word-chip small { color: var(--muted); font-size: 0.7em; margin-left: 0.35em; font-variant-numeric: tabular-nums; }
+
+/* the book bank */
+.book-bank { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+.book { padding: 0.8rem 0.5rem; border-top: 1px solid var(--hairline); }
+.book:last-child { border-bottom: 1px solid var(--hairline); }
+.book-line { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.book-title { font-weight: 500; }
+.book-title .author { color: var(--muted); font-weight: 400; font-size: 0.85rem; }
+.book-pct { color: var(--muted); font-size: 0.82rem; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.book .bar {
+  display: block;
+  height: 3px;
+  margin-top: 0.55rem;
+  background: #1b252c;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.book .bar i { display: block; height: 100%; background: var(--accent); border-radius: 2px; }
+.book-badge { margin: 0.4rem 0 0; color: var(--accent); font-size: 0.8rem; }
+
 .foot {
   margin-top: auto;
   padding-top: 3rem;
