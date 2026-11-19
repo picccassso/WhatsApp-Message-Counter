@@ -279,6 +279,22 @@ body {
   outline-offset: 3px;
 }
 
+/* extra names to scrub from texts when anonymizing */
+.extra-names {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  border-radius: 0;
+  padding: 0.4rem 0.2rem;
+  width: 16rem;
+  max-width: 100%;
+}
+.extra-names::placeholder { color: var(--muted); opacity: 0.75; }
+.extra-names:focus { outline: none; border-bottom-color: var(--accent); }
+
 /* word games section (hidden until toggled on) */
 .word-section { margin-top: 2.5rem; animation: rise 0.35s ease both; }
 .word-title { margin: 0; font-size: 1.2rem; font-weight: 700; letter-spacing: -0.01em; }

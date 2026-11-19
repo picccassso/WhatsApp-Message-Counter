@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse } = require('../parser.js');
+const { parse, senderMap, detectNames } = require('../parser.js');
 const { tokenize, analyze, BOOKS, bookReport } = require('../words.js');
 
 let failures = 0;
@@ -96,6 +96,52 @@ check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 23
 {
   const r = bookReport(115); // halfway between 50 and 230
   check('pct is share of the book vocab', Math.round(r.books[1].pct), 50);
+}
+
+/* ---------- analyze with a sender map: names inside texts become labels ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: alex alex sam',
+    '12/05/2025, 18:44 - Sam: sam sam hi alex',
+    '12/05/2025, 18:45 - Alex: Samantha and sam',
+  ].join('\n'));
+  const w = analyze(r.messages, { senderMap: senderMap(r) });
+  check('anonymized top words', w.top.map((t) => [t.word, t.count]),
+    [['Person B', 4], ['Person A', 3], ['and', 1], ['hi', 1], ['samantha', 1]]);
+  check('no raw name token survives', w.top.some((t) => /^(alex|sam)$/i.test(t.word)), false);
+  check('totals unchanged by anonymization', [w.totalWords, w.messageCount], [10, 3]);
+  check('unique words', w.uniqueWords, 5);
+  const alex = w.senders.find((s) => s.sender === 'Alex');
+  const sam = w.senders.find((s) => s.sender === 'Sam');
+  check('signature is the label, not the name', [alex.signature, sam.signature], ['Person A', 'Person B']);
+  check('per-sender top uses labels', sam.top[0], { word: 'Person B', count: 2 });
+}
+
+// one-letter sender names are not relabeled in word counts ("a" is a word)
+{
+  const r = parse('12/05/2025, 18:43 - A: a a ok\n');
+  const w = analyze(r.messages, { senderMap: senderMap(r) });
+  check('one-letter name kept as a word', w.top.map((t) => t.word), ['a', 'ok']);
+}
+
+// no opts -> identical to before
+{
+  const r = parse('12/05/2025, 18:43 - Alex: alex alex\n');
+  check('no opts keeps raw tokens', analyze(r.messages).top, [{ word: 'alex', count: 2 }]);
+  check('null opts keeps raw tokens', analyze(r.messages, null).top, [{ word: 'alex', count: 2 }]);
+}
+
+// detected third-party names (parser.detectNames) are labeled in the cloud too
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: samantha says hi to samantha',
+    '12/05/2025, 18:44 - Sam: hi alex',
+  ].join('\n'));
+  const sm = senderMap(r);
+  const w = analyze(r.messages, { senderMap: sm, nameMap: detectNames(r, { senderMap: sm }) });
+  check('detected name labeled in top words', w.top.find((t) => t.word === 'Person C'), { word: 'Person C', count: 2 });
+  check('no raw detected name in top words', w.top.some((t) => /samantha/i.test(t.word)), false);
 }
 
 /* ---------- big fixture: runs fast and sane on 100k messages ---------- */

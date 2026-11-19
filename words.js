@@ -4,6 +4,12 @@
  * Pure functions over parser.js's result.messages, no DOM, no network:
  *   tokenize(text)        -> lowercase word tokens (Unicode-aware; contractions and
  *                            hyphenated words kept, pure numbers dropped, emoji ignored)
+ *   analyze(messages, opts) -> same as analyze(messages), but with
+ *                              opts.senderMap / opts.nameMap (Maps of real name ->
+ *                              "Person X" label, e.g. from parser.js's senderMap()
+ *                              and detectNames()) every whole-word name token in
+ *                              the counts is shown as its label, so the word cloud
+ *                              and signatures don't leak names typed inside texts
  *   analyze(messages)     -> { totalWords, uniqueWords, ratio, messageCount, mediaSkipped,
  *                              top, topEmoji, senders: [{ sender, total, unique, ratio,
  *                              top, signature }] } — senders ranked by vocabulary size
@@ -55,7 +61,29 @@
       .slice(0, n);
   }
 
-  function analyze(messages) {
+  function analyze(messages, opts) {
+    // Optional anonymization: opts.senderMap (the chat's senders) and
+    // opts.nameMap (other detected names, e.g. parser.js's detectNames())
+    // map real names to labels. Tokens are lowercased by tokenize(), so the
+    // lookup is keyed on the lowercase name; one-letter names are skipped —
+    // replacing a single-letter token would relabel ordinary words (same rule
+    // as parser.js's replaceNames).
+    let nameLabels = null;
+    if (opts && (opts.senderMap || opts.nameMap)) {
+      nameLabels = new Map();
+      const add = (map) => {
+        if (!map) return;
+        for (const [name, label] of map) {
+          if (name.length >= 2 && !nameLabels.has(name.toLowerCase())) {
+            nameLabels.set(name.toLowerCase(), label);
+          }
+        }
+      };
+      add(opts.senderMap);
+      add(opts.nameMap);
+      if (!nameLabels.size) nameLabels = null;
+    }
+
     const overall = new Map();
     const emoji = new Map();
     const perSender = new Map();
@@ -77,7 +105,8 @@
         s = { sender: m.sender, counts: new Map(), total: 0 };
         perSender.set(m.sender, s);
       }
-      for (const t of tokens) {
+      for (const raw of tokens) {
+        const t = nameLabels ? nameLabels.get(raw) || raw : raw;
         overall.set(t, (overall.get(t) || 0) + 1);
         s.counts.set(t, (s.counts.get(t) || 0) + 1);
         s.total++;

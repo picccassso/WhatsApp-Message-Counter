@@ -19,6 +19,7 @@
   const extras = $('extras');
   const againBtn = $('againBtn');
   const anonToggle = $('anonToggle');
+  const extraNamesInput = $('extraNames');
   const exportBtn = $('exportBtn');
   const wordsToggle = $('wordsToggle');
   const wordSection = $('wordSection');
@@ -85,12 +86,15 @@
     if (!current) return;
     current.anon = anonToggle.checked;
     buildSenderRows(current.result); // re-label the sender rows; strip/colors are keyed by real sender and stay as they are
-    if (!wordSection.hidden) renderWords(); // word games follow the anonymized labels too
+    if (!wordSection.hidden) renderWords(); // word games re-render too — labels and name words inside texts
   });
   exportBtn.addEventListener('click', () => {
     if (!current) return;
     // Export follows the toggle: anonymized view -> anonymized file, plain view -> original names.
-    const text = WhatsAppParser.toText(current.result, { senderMap: current.anon ? current.map : null });
+    // The anonymized file scrubs sender names AND other names detected inside the
+    // texts (built-in name list + the "also hide names" box) from every line.
+    const opts = current.anon ? { senderMap: current.map, nameMap: ensureDetected() } : {};
+    const text = WhatsAppParser.toText(current.result, opts);
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -106,8 +110,6 @@
   wordsToggle.addEventListener('change', () => {
     if (!current) return;
     if (wordsToggle.checked) {
-      // The vocabulary analysis runs once per file, only when the section is opened.
-      if (!current.words) current.words = WhatsAppWords.analyze(current.result.messages);
       renderWords();
       wordSection.hidden = false;
       wordSection.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
@@ -178,7 +180,47 @@
 
   /* ---------- rendering ---------- */
 
-  let current = null; // { result, colors: Map<sender, color>, map: Map<sender, label>, anon, name, rawText }
+  let current = null; // { result, colors: Map<sender, color>, map: Map<sender, label>, detected: Map<name, label>|null, anon, name, rawText, wordsCache: {} }
+
+  // Names to scrub from texts on top of the senders: comma/semicolon/newline-separated box.
+  function readExtraNames() {
+    return extraNamesInput.value.split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  // Names of non-senders detected inside the texts (built-in name list + extra
+  // names box), labeled Person C/D/… — computed lazily, only when anonymizing.
+  function ensureDetected() {
+    if (!current.detected) {
+      current.detected = WhatsAppParser.detectNames(current.result, {
+        senderMap: current.map,
+        extraNames: readExtraNames(),
+      });
+    }
+    return current.detected;
+  }
+
+  // The vocabulary analysis runs once per file per (anonymize, extra-names)
+  // state, lazily, only when the word games are opened. The anonymized run
+  // passes the sender + detected name maps, so name words typed inside message
+  // texts become "Person A/B/C/…" labels in the word cloud and signatures too.
+  function wordsFor(anon) {
+    const key = (anon ? 'anon|' : 'plain|') + readExtraNames().join('');
+    if (!current.wordsCache[key]) {
+      current.wordsCache[key] = WhatsAppWords.analyze(
+        current.result.messages,
+        anon ? { senderMap: current.map, nameMap: ensureDetected() } : null
+      );
+    }
+    return current.wordsCache[key];
+  }
+
+  // Editing the extra-names box re-detects names and re-renders the word games.
+  extraNamesInput.addEventListener('input', () => {
+    if (!current) return;
+    current.detected = null; // force re-detection with the new names
+    current.wordsCache = {};
+    if (current.anon && !wordSection.hidden) renderWords();
+  });
 
   function render(name, size, result, rawText) {
     current = {
@@ -188,7 +230,8 @@
       anon: false,
       name,
       rawText,
-      words: null, // lazily computed vocabulary analysis (word games)
+      detected: null, // lazily detected non-sender names (anonymized export / word games)
+      wordsCache: {}, // lazily computed vocabulary analysis, keyed by anon + extra names
     };
     anonToggle.checked = false;
     wordsToggle.checked = false;
@@ -290,7 +333,7 @@
   /* ---------- word games ---------- */
 
   function renderWords() {
-    const w = current.words;
+    const w = wordsFor(current.anon);
     const label = (s) => (current.anon && current.map.get(s)) || s;
 
     wordSection.classList.toggle('empty', !w.totalWords);

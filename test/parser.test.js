@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse, senderMap, toText } = require('../parser.js');
+const { parse, senderMap, detectNames, toText } = require('../parser.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -100,7 +100,8 @@ function roundTrip(f) {
   check('export has labels', out.includes('Person A') && out.includes('Person B'), true);
   check('no whole-word Alex left', /(?<![\p{L}\p{N}_])Alex(?![\p{L}\p{N}_])/u.test(out), false);
   check('no whole-word Sam left', /(?<![\p{L}\p{N}_])Sam(?![\p{L}\p{N}_])/u.test(out), false);
-  check('Samantha preserved (no substring match)', out.includes('tell Samantha hi'), true);
+  check('third-party name Samantha detected and labeled', out.includes('tell Person C hi'), true);
+  check('no Samantha left', /(?<![\p{L}\p{N}_])Samantha(?![\p{L}\p{N}_])/iu.test(out), false);
   check('sender field anonymized', out.includes('12/05/2025, 18:43 - Person A: hi Person B, how are you?'), true);
   check('system line anonymized', out.includes('Person A changed the subject to "Person A & Person B trip"'), true);
   check('multiline body anonymized', out.includes('second line mentioning Person B'), true);
@@ -112,6 +113,30 @@ function roundTrip(f) {
   const plain = toText(r);
   check('plain export keeps names', plain.includes(' - Alex: ') && plain.includes(' - Sam: '), true);
   check('plain export keeps system line verbatim', plain.includes('Alex changed the subject to "Alex & Sam trip"'), true);
+}
+
+// case-insensitive mentions in free text + possessives + longer names win
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: hey alex, meet ALEX at 8',
+    '12/05/2025, 18:44 - Sam: sam is here, Samantha stays, Sam\'s car is fast',
+    '12/05/2025, 18:45 - Alex: ok',
+  ].join('\n'));
+  const out = toText(r, { senderMap: senderMap(r) });
+  check('no name left in any capitalization', /(?<![\p{L}\p{N}_])(alex|sam)(?![\p{L}\p{N}_])/iu.test(out), false);
+  check('lowercase/uppercase mentions replaced', out.includes('12/05/2025, 18:43 - Person A: hey Person A, meet Person A at 8'), true);
+  check('possessive replaced, third-party name labeled', out.includes('Person B is here, Person C stays, Person B\'s car is fast'), true);
+}
+
+// a longer name must win over its prefix when both are senders
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Sam: hi Samantha',
+    '12/05/2025, 18:44 - Samantha: hi Sam',
+  ].join('\n'));
+  const out = toText(r, { senderMap: senderMap(r) });
+  check('longest name matches first', out.includes('12/05/2025, 18:43 - Person A: hi Person B'), true);
+  check('prefix name still replaced standalone', out.includes('12/05/2025, 18:44 - Person B: hi Person A'), true);
 }
 
 // label sequence: A..Z then AA
@@ -128,6 +153,58 @@ function roundTrip(f) {
   const r = parse('12/05/2025, 18:43 - A: grade A is great\n12/05/2025, 18:44 - B: ok\n');
   const out = toText(r, { senderMap: senderMap(r) });
   check('1-char sender field replaced', out.includes(' - Person A: grade A is great'), true);
+}
+
+/* ---------- detecting third-party names inside the texts ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: hi Zara and Maria',
+    '12/05/2025, 18:44 - Alex: maria waves back',
+  ].join('\n'));
+  const sm = senderMap(r);
+  const detected = detectNames(r, { senderMap: sm });
+  check('detectNames labels in first-appearance order', Array.from(detected.entries()),
+    [['Zara', 'Person B'], ['Maria', 'Person C']]);
+  const out = toText(r, { senderMap: sm });
+  check('third-party names labeled in text', out.includes('Person A: hi Person B and Person C'), true);
+  check('lowercase mention labeled too', out.includes('Person A: Person C waves back'), true);
+  check('no Zara/Maria left', /(?<![\p{L}\p{N}_])(zara|maria)(?![\p{L}\p{N}_])/iu.test(out), false);
+  // passing the precomputed map gives the same result
+  check('toText accepts precomputed nameMap', toText(r, { senderMap: sm, nameMap: detected }), out);
+}
+
+// ambiguous names (also ordinary words): replaced only when capitalized
+{
+  const r = parse('12/05/2025, 18:43 - Alex: Will you come? will we go?\n');
+  const out = toText(r, { senderMap: senderMap(r) });
+  check('capitalized ambiguous name replaced', out.includes('Person B you come?'), true);
+  check('lowercase ordinary word kept', out.includes('will we go?'), true);
+}
+
+// a sender whose name is also a word: still replaced in any case
+{
+  const r = parse('12/05/2025, 18:43 - Will: will you come? I will wait\n');
+  const out = toText(r, { senderMap: senderMap(r) });
+  check('sender name replaced in any case', out.includes(' - Person A: Person A you come? I Person A wait'), true);
+}
+
+// extra names + disabling the built-in list
+{
+  const r = parse('12/05/2025, 18:43 - Alex: tell Mum and dr. House hi\n');
+  const sm = senderMap(r);
+  const out = toText(r, { senderMap: sm, extraNames: ['Mum', 'Dr. House'], useNameList: false });
+  check('extra names replaced in any case (incl. multi-word)', out.includes('tell Person B and Person C hi'), true);
+  const out2 = toText(r, { senderMap: sm, useNameList: false });
+  check('dictionary off when useNameList false', out2.includes('tell Mum and dr. House hi'), true);
+}
+
+// a name that is only a substring of a longer word is never touched
+{
+  const r = parse('12/05/2025, 18:43 - Alex: marinate the chicken, Maryam style\n');
+  const out = toText(r, { senderMap: senderMap(r) });
+  check('substring of a longer word kept', out.includes('marinate the chicken'), true);
+  check('real mention replaced', out.includes('Person B style'), true);
 }
 
 if (failures) {

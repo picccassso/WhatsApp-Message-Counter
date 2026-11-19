@@ -21,9 +21,17 @@ Open `index.html` in any modern browser (double-click works, no build step), the
 On the results screen:
 
 - **Anonymize names** — flip the switch and every sender is shown as `Person A`, `Person B`, … (in order of who messaged first). Colors, counts and the strip are unchanged; flip it back to see real names again.
-- **Export .txt** — downloads the chat as a `.txt` in its original WhatsApp line layout, so you can drop it back into this app (or share it) and get the same counts. If the anonymize switch is on, the export is anonymized too: sender fields become `Person A/B/…`, and names mentioned in system lines (`Alex changed the subject…`) and inside message text are replaced as well. Anonymized downloads are always named `anonymized-chat.txt` — real exports are often called `WhatsApp Chat with Alex.txt`, and that file name would leak the name.
+- **Export .txt** — downloads the chat as a `.txt` in its original WhatsApp line layout, so you can drop it back into this app (or share it) and get the same counts. If the anonymize switch is on, the export is **completely anonymized**: sender fields become `Person A/B/…`, and names inside the texts are replaced too — see below. Anonymized downloads are always named `anonymized-chat.txt` — real exports are often called `WhatsApp Chat with Alex.txt`, and that file name would leak the name.
 
-Anonymization is best-effort: it replaces exact, whole-word, case-sensitive matches of each sender's name (so `Sam` is replaced but `Samantha` is left alone). Nicknames or misspelled mentions in free text are not caught — check the export before sharing it.
+Which names get scrubbed from message bodies and system lines (`Alex changed the subject…`):
+
+- **The senders' own names**, in any capitalization (`alex`, `Alex`, `ALEX` all count) — whole-word only, so `Sam` never matches inside `Samantha`.
+- **Other people's names mentioned in the texts** — a built-in list of ~650 common first names and surnames (`names.js`) is detected automatically and labeled `Person C`, `Person D`, … in order of first appearance. Names that are also ordinary English words (`Will`, `Grace`, `Cook`, …) are only replaced when capitalized, so sentences like `will you come?` or `the cook is here` are left intact.
+- **Anything the list misses** — type extra names into the "also hide names…" box next to the switch (comma-separated; multi-word names like `Dr. House` work too).
+
+Anonymization is best-effort: it replaces whole-word matches of known names — nicknames, misspellings or names outside the list won't be caught, so check the export before sharing it.
+
+The word games follow the anonymize switch too: sender names become `Person A/B/…` as usual, and name words typed inside message texts (which show up in the most-used-words cloud and in signatures) are replaced by their labels there as well.
 
 ### Word games 🎲
 
@@ -51,7 +59,8 @@ Handled: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h and 
 ## Files
 
 - `index.html`, `styles.css`, `app.js` — the app (vanilla, no dependencies)
-- `parser.js` — the export parser plus `senderMap()` / `toText()` for anonymized re-exports; also loadable in node for tests
+- `names.js` — built-in list of common first names/surnames used to scrub third-party names from texts when anonymizing
+- `parser.js` — the export parser plus `senderMap()` / `detectNames()` / `toText()` for anonymized re-exports; also loadable in node for tests
 - `words.js` — the word-games analysis (`tokenize()` / `analyze()` / `bookReport()`) behind the Word games switch; also loadable in node for tests
 - `test/parser.test.js` — run with `node test/parser.test.js`
 - `test/words.test.js` — run with `node test/words.test.js`
