@@ -2601,11 +2601,12 @@
     let maxLen = 1;
     for (const m of msgs) maxLen = Math.max(maxLen, m.text.length);
     const maxLog = Math.log(1 + maxLen);
-    const buckets = Math.min(msgs.length, maxBuckets);
-    const bSize = Math.ceil(msgs.length / buckets);
+    const bSize = Math.max(1, Math.ceil(msgs.length / maxBuckets));
+    const buckets = Math.ceil(msgs.length / bSize);
     const slot = sw / buckets;
     for (let b = 0; b < buckets; b++) {
       const sIdx = b * bSize;
+      if (sIdx >= msgs.length) break;
       const eIdx = Math.min(sIdx + bSize, msgs.length);
       let best = msgs[sIdx];
       for (let j = sIdx; j < eIdx; j++) {
