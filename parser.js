@@ -57,7 +57,30 @@
   const MEDIA_RE = /<media omitted>|\(file attached\)|\b(?:image|video|audio|sticker|document|location|contact card|gif|voice message) omitted\b/i;
 
   // System notices that iOS WhatsApp prefixes with "<Chat Name>: " (making them look like a real message).
-  const SYSTEM_TEXT_RE = /^(?:Messages(?: to this (?:chat|group))? and calls are (?:now secured with )?end-to-end encrypt(?:ed|ion)\.|Your security code with .+ changed\.|This (?:business uses a secure service from Meta|chat is with a business account)\b|.+ (?:created group|changed the subject(?: from ["“][^"”]+["”])? to) ["“][^"”]+["”]\.?$)/i;
+  const SYSTEM_TEXT_RE = new RegExp(
+    '^(?:' +
+      'Messages(?: to this (?:chat|group))? and calls are (?:now secured with )?end-to-end encrypt(?:ed|ion)\\.' +
+      '|Your security code with .+ changed\\.' +
+      '|This (?:business uses a secure service from Meta|chat is with (?:a|the official) business account)\\b' +
+      '|You (?:blocked|unblocked) this contact\\.' +
+      '|(?:This sender|The sender|.+) is (?:a contact|not in your contacts)\\.' +
+      '|(?:You|.+) (?:turned (?:on|off) disappearing messages|updated the message timer)\\b' +
+      '|Disappearing messages were turned (?:on|off)\\b' +
+      '|.+ changed (?:their|his|her) phone number to a new number\\b' +
+      '|.+ (?:created group|changed the subject(?: from ["“][^"”]+["”])? to) ["“][^"”]+["”]\\.?$' +
+      '|.+ (?:changed|deleted) (?:this group\'s icon|the group description)\\.?$' +
+      '|.+ joined using (?:this group\'s|an) invite link\\.?$' +
+      '|You\'re now an admin\\.?$' +
+    ')',
+    'i'
+  );
+
+  function isSystemNotice(sender, body) {
+    const t = body.trim();
+    if (!t) return false;
+    if (t === sender + ' is a contact' || t === sender + ' is a contact.') return true;
+    return SYSTEM_TEXT_RE.test(t);
+  }
 
   function parse(text) {
     const clean = String(text).replace(/^\uFEFF/, '').replace(INVISIBLE_RE, '');
@@ -70,7 +93,7 @@
       if (!raw.trim()) continue;
 
       const m = MESSAGE_RE.exec(raw);
-      if (m && m[2].indexOf('"') === -1 && !SYSTEM_TEXT_RE.test(m[3].trim())) {
+      if (m && m[2].indexOf('"') === -1 && !isSystemNotice(m[2].trim(), m[3])) {
         // A sender name never contains a quote; system lines like
         // 'changed the subject to "a: b"' do — don't mistake them for messages.
         // Also skip iOS-prefixed system notices ("<Chat Name>: Messages and calls are end-to-end encrypted...").
@@ -484,16 +507,22 @@
     };
   }
 
-  // Stamp the whole chat with a cheeky personality archetype based on its stats.
+  // Stamp the whole chat with a cheeky personality archetype based on its stats,
+  // complete with personalized "why you got this" receipts, 6 DNA vitals, runner-up matches,
+  // and the full catalog of archetypes.
+  function formatHourLabel(h) {
+    if (h == null) return '—';
+    if (h === 0) return '12 AM';
+    if (h < 12) return h + ' AM';
+    if (h === 12) return '12 PM';
+    return (h - 12) + ' PM';
+  }
+
   function chatArchetype(result, ins) {
     const total = (result && result.total) || 0;
     const senders = (result && result.senders) || [];
-    if (!total) return { icon: '💬', title: 'Empty Room', tagline: 'No messages yet.' };
-    if (senders.length === 1) {
-      return { icon: '📓', title: 'Solo Brain-Dump Diary', tagline: 'Just you, your notes, and zero interruptions.' };
-    }
+    const pct = (r) => Math.round(r * 100);
 
-    const topShare = senders[0].count / total;
     const statsList = Object.values((ins && ins.senderStats) || {});
     const totalTs = (ins && ins.totalParsedTs) || 0;
     const nightTotal = statsList.reduce((s, x) => s + (x.nightMsgs || 0), 0);
@@ -504,59 +533,234 @@
     const shareTotal = statsList.reduce((s, x) => s + (x.shares || 0), 0);
     const textTotal = Math.max(1, statsList.reduce((s, x) => s + (x.textCount || 0), 0));
 
+    const topShare = total && senders.length ? senders[0].count / total : 1;
     const nightRate = totalTs ? nightTotal / totalTs : 0;
     const earlyRate = totalTs ? earlyTotal / totalTs : 0;
     const laughRate = laughTotal / textTotal;
     const questionRate = questionTotal / textTotal;
     const shoutRate = shoutTotal / textTotal;
-    const shareRate = shareTotal / total;
+    const shareRate = total ? shareTotal / total : 0;
     const avgChars = (ins && ins.avgChars) || 0;
     const avgBurst = statsList.length
-      ? statsList.reduce((s, x) => s + (x.avgBurst || 0), 0) / statsList.length
+      ? Math.round((statsList.reduce((s, x) => s + (x.avgBurst || 0), 0) / statsList.length) * 10) / 10
       : 1;
     const fastestMs = ins && ins.fastestReplier ? ins.fastestReplier.medianMs : null;
     const peakH = ins && ins.peakHour ? ins.peakHour.hour : null;
     const silenceDays = ins && ins.longestSilence ? ins.longestSilence.days : 0;
     const activeDays = (ins && ins.dayList && ins.dayList.length) || 1;
-    const msgsPerActiveDay = total / activeDays;
+    const msgsPerActiveDay = Math.round((total / activeDays) * 10) / 10;
 
-    if (topShare >= 0.72 && total >= 10) {
-      return { icon: '🎙️', title: 'One-Sided Podcast', tagline: 'One host, one very patient live audience.' };
+    const vitals = [
+      {
+        label: 'Reply speed',
+        value: fastestMs !== null ? formatDurationShort(fastestMs) + ' fastest median' : '—',
+        pct: fastestMs !== null ? Math.max(8, Math.min(100, Math.round(100 - Math.min(92, Math.log2(1 + fastestMs / 60000) * 18)))) : 0,
+      },
+      {
+        label: 'Burstiness',
+        value: avgBurst + ' msgs/turn',
+        pct: Math.min(100, Math.round((avgBurst / 4) * 100)),
+      },
+      {
+        label: 'After midnight',
+        value: pct(nightRate) + '% (peak ' + formatHourLabel(peakH) + ')',
+        pct: Math.min(100, Math.round(nightRate * 250)),
+      },
+      {
+        label: 'Laugh density',
+        value: pct(laughRate) + '% of texts',
+        pct: Math.min(100, Math.round(laughRate * 350)),
+      },
+      {
+        label: 'Media & links',
+        value: pct(shareRate) + '% of msgs',
+        pct: Math.min(100, Math.round(shareRate * 250)),
+      },
+      {
+        label: 'Avg length',
+        value: avgChars + ' chars/msg',
+        pct: Math.min(100, Math.round((avgChars / 120) * 100)),
+      },
+    ];
+
+    const rules = [
+      {
+        id: 'podcast',
+        icon: '🎙️',
+        title: 'One-Sided Podcast',
+        tagline: 'One host, one very patient live audience.',
+        criteria: 'One sender sends ≥72% of all messages',
+        matched: senders.length >= 2 && topShare >= 0.72 && total >= 10,
+        reason: () => `Top sender accounts for ${pct(topShare)}% of all ${total.toLocaleString()} messages (threshold ≥72%).`,
+      },
+      {
+        id: 'nightOwls',
+        icon: '🦉',
+        title: '3 AM Oversharing Syndicate',
+        tagline: 'Nothing good happens after midnight — except this chat.',
+        criteria: '≥25% of messages after midnight, or peak hour between 11 PM and 3 AM',
+        matched: senders.length >= 2 && (nightRate >= 0.25 || (peakH !== null && (peakH >= 23 || peakH <= 3))),
+        reason: () => nightRate >= 0.25
+          ? `${pct(nightRate)}% of your messages happen between midnight and 4 AM (peak hour: ${formatHourLabel(peakH)}).`
+          : `Your chat’s peak hour is ${formatHourLabel(peakH)}, with ${pct(nightRate)}% of all texts sent after midnight.`,
+      },
+      {
+        id: 'hotline',
+        icon: '📢',
+        title: 'All-Caps Emergency Hotline',
+        tagline: 'Volume permanently stuck at 11.',
+        criteria: '≥14% of text messages in ALL CAPS or triple-exclamation',
+        matched: senders.length >= 2 && shoutRate >= 0.14 && shoutTotal >= 3,
+        reason: () => `${pct(shoutRate)}% of text messages (${shoutTotal}) are ALL CAPS or triple-exclamation loud.`,
+      },
+      {
+        id: 'memes',
+        icon: '📎',
+        title: 'Rapid-Fire Meme Pipeline',
+        tagline: 'Half conversation, half curated internet archive.',
+        criteria: '≥28% of messages are media or links',
+        matched: senders.length >= 2 && shareRate >= 0.28 && shareTotal >= 4,
+        reason: () => `${pct(shareRate)}% of the chat (${shareTotal} messages) is shared media or links.`,
+      },
+      {
+        id: 'comedy',
+        icon: '🎭',
+        title: 'Unofficial Comedy Club',
+        tagline: 'High laugh-to-message ratio. Unhinged in the best way.',
+        criteria: '≥18% of text messages contain laughs (haha/lol/😂/💀)',
+        matched: senders.length >= 2 && laughRate >= 0.18 && laughTotal >= 3,
+        reason: () => `${pct(laughRate)}% of text messages (${laughTotal}) are laughs, haha’s, or 😂/💀 reactions.`,
+      },
+      {
+        id: 'chaosEngine',
+        icon: '⚡',
+        title: 'Rapid-Fire Chaos Engine',
+        tagline: 'Blink and you have 14 unread messages.',
+        criteria: 'Fastest median reply ≤2m and avg ≥1.8 messages per turn',
+        matched: senders.length >= 2 && fastestMs !== null && fastestMs <= 120000 && avgBurst >= 1.8,
+        reason: () => `Fastest median reply is ${formatDurationShort(fastestMs)} (≤2m) and senders fire off an average of ${avgBurst} messages per turn (≥1.8×) at ${msgsPerActiveDay} msgs/active day.`,
+      },
+      {
+        id: 'penPals',
+        icon: '🪶',
+        title: 'Victorian Pen Pals',
+        tagline: 'Thoughtful essays delivered at a dignified pace.',
+        criteria: 'Avg ≥85 chars/message and median reply ≥15m',
+        matched: senders.length >= 2 && avgChars >= 85 && (fastestMs === null || fastestMs >= 15 * 60000),
+        reason: () => `Messages average ${avgChars} characters each with a relaxed ${fastestMs !== null ? formatDurationShort(fastestMs) : 'unhurried'} reply pace.`,
+      },
+      {
+        id: 'investigation',
+        icon: '🕵️',
+        title: '24/7 Investigation Bureau',
+        tagline: 'So many questions, not nearly enough answers.',
+        criteria: '≥26% of text messages contain a question mark',
+        matched: senders.length >= 2 && questionRate >= 0.26 && questionTotal >= 4,
+        reason: () => `${pct(questionRate)}% of text messages (${questionTotal}) ask a question.`,
+      },
+      {
+        id: 'sunrise',
+        icon: '☕',
+        title: 'Sunrise Coffee Club',
+        tagline: 'Awake and texting before the rest of the world.',
+        criteria: '≥25% of messages sent between 5 AM and 8 AM',
+        matched: senders.length >= 2 && earlyRate >= 0.25 && earlyTotal >= 3,
+        reason: () => `${pct(earlyRate)}% of messages (${earlyTotal}) are sent between 5 AM and 8 AM.`,
+      },
+      {
+        id: 'comet',
+        icon: '☄️',
+        title: "Halley's Comet Check-Ins",
+        tagline: 'Rare appearances, always worth the wait.',
+        criteria: 'Longest silence ≥14 days and fewer than 8 msgs/active day',
+        matched: senders.length >= 2 && silenceDays >= 14 && msgsPerActiveDay < 8,
+        reason: () => `Longest gap was ${silenceDays} days with a breezy ${msgsPerActiveDay} messages per active day.`,
+      },
+      {
+        id: 'council',
+        icon: '🎪',
+        title: 'Group Chat Council',
+        tagline: 'Zero consensus, maximum entertainment.',
+        criteria: '3+ active participants with balanced chaos',
+        matched: senders.length >= 3,
+        reason: () => `${senders.length} participants trading ${msgsPerActiveDay} messages per active day (top voice holds ${pct(topShare)}%).`,
+      },
+      {
+        id: 'pingPong',
+        icon: '🏓',
+        title: 'Telepathic Ping-Pong Duo',
+        tagline: 'Balanced back-and-forth with razor-sharp replies.',
+        criteria: '2-person chat with ≤58% top share and ≤5m median reply',
+        matched: senders.length === 2 && topShare <= 0.58 && fastestMs !== null && fastestMs <= 5 * 60000,
+        reason: () => `Near-even ${pct(topShare)}% / ${100 - pct(topShare)}% split with a ${formatDurationShort(fastestMs)} median reply speed.`,
+      },
+      {
+        id: 'banter',
+        icon: '💬',
+        title: 'Classic Banter Vault',
+        tagline: 'Steady rhythm, solid lore, zero dull moments.',
+        criteria: 'Well-rounded chat with no single extreme skew',
+        matched: senders.length >= 2,
+        reason: () => `${msgsPerActiveDay} messages per active day, averaging ${avgChars} chars/msg with a ${pct(topShare)}% top-sender share.`,
+      },
+    ];
+
+    const catalog = rules.map((r) => ({
+      id: r.id,
+      icon: r.icon,
+      title: r.title,
+      tagline: r.tagline,
+      criteria: r.criteria,
+      matched: r.matched,
+    }));
+
+    if (!total) {
+      return {
+        id: 'empty',
+        icon: '💬',
+        title: 'Empty Room',
+        tagline: 'No messages yet.',
+        reason: 'Drop a WhatsApp chat export to diagnose its personality.',
+        criteria: '0 messages',
+        vitals,
+        runnersUp: [],
+        all: catalog,
+      };
     }
-    if (nightRate >= 0.25 || (peakH !== null && (peakH >= 23 || peakH <= 3))) {
-      return { icon: '🦉', title: '3 AM Oversharing Syndicate', tagline: 'Nothing good happens after midnight — except this chat.' };
+
+    if (senders.length === 1) {
+      return {
+        id: 'diary',
+        icon: '📓',
+        title: 'Solo Brain-Dump Diary',
+        tagline: 'Just you, your notes, and zero interruptions.',
+        reason: `100% of all ${total.toLocaleString()} messages come from a single sender.`,
+        criteria: 'Single-sender chat',
+        vitals,
+        runnersUp: [],
+        all: catalog,
+      };
     }
-    if (shoutRate >= 0.14 && shoutTotal >= 3) {
-      return { icon: '📢', title: 'All-Caps Emergency Hotline', tagline: 'Volume permanently stuck at 11.' };
-    }
-    if (shareRate >= 0.28 && shareTotal >= 4) {
-      return { icon: '📎', title: 'Rapid-Fire Meme Pipeline', tagline: 'Half conversation, half curated internet archive.' };
-    }
-    if (laughRate >= 0.18 && laughTotal >= 3) {
-      return { icon: '🎭', title: 'Unofficial Comedy Club', tagline: 'High laugh-to-message ratio. Unhinged in the best way.' };
-    }
-    if (fastestMs !== null && fastestMs <= 120000 && avgBurst >= 1.8) {
-      return { icon: '⚡', title: 'Rapid-Fire Chaos Engine', tagline: 'Blink and you have 14 unread messages.' };
-    }
-    if (avgChars >= 85 && (fastestMs === null || fastestMs >= 15 * 60000)) {
-      return { icon: '🪶', title: 'Victorian Pen Pals', tagline: 'Thoughtful essays delivered at a dignified pace.' };
-    }
-    if (questionRate >= 0.26 && questionTotal >= 4) {
-      return { icon: '🕵️', title: '24/7 Investigation Bureau', tagline: 'So many questions, not nearly enough answers.' };
-    }
-    if (earlyRate >= 0.25 && earlyTotal >= 3) {
-      return { icon: '☕', title: 'Sunrise Coffee Club', tagline: 'Awake and texting before the rest of the world.' };
-    }
-    if (silenceDays >= 14 && msgsPerActiveDay < 8) {
-      return { icon: '☄️', title: "Halley's Comet Check-Ins", tagline: 'Rare appearances, always worth the wait.' };
-    }
-    if (senders.length >= 3) {
-      return { icon: '🎪', title: 'Group Chat Council', tagline: 'Zero consensus, maximum entertainment.' };
-    }
-    if (senders.length === 2 && topShare <= 0.58 && fastestMs !== null && fastestMs <= 5 * 60000) {
-      return { icon: '🏓', title: 'Telepathic Ping-Pong Duo', tagline: 'Balanced back-and-forth with razor-sharp replies.' };
-    }
-    return { icon: '💬', title: 'Classic Banter Vault', tagline: 'Steady rhythm, solid lore, zero dull moments.' };
+
+    const matched = rules.filter((r) => r.matched);
+    const winner = matched[0] || rules[rules.length - 1];
+    const runnersUp = matched
+      .slice(1)
+      .filter((r) => r.id !== 'banter')
+      .slice(0, 3)
+      .map((r) => ({ id: r.id, icon: r.icon, title: r.title, tagline: r.tagline, reason: r.reason() }));
+
+    return {
+      id: winner.id,
+      icon: winner.icon,
+      title: winner.title,
+      tagline: winner.tagline,
+      criteria: winner.criteria,
+      reason: winner.reason(),
+      vitals,
+      runnersUp,
+      all: catalog,
+    };
   }
 
   // Compute fun chat insights in a single pass over result.messages:

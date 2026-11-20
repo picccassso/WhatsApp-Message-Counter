@@ -77,7 +77,7 @@
           </span>
         </button>
         <p id="extras" class="extras"></p>
-        <button type="button" id="archetypeBadge" class="archetype-badge" hidden title="Open Chat Wrapped"></button>
+        <button type="button" id="archetypeBadge" class="archetype-badge" hidden title="Click to see why your chat got this archetype"></button>
         <div id="vibeList" class="vibe-list" hidden></div>
       </div>
 
@@ -217,7 +217,28 @@
           <button type="button" id="peekRandomBtn" class="pill-action">🎲 Random</button>
           <button type="button" id="peekNextBtn" class="pill-action">Later →</button>
         </div>
-        <button type="button" id="peekQuoteBtn" class="pill-action accent-pill" title="Save the highlighted message as an Out of Context PNG quote card">📸 Quote card</button>
+        <div class="peek-foot-actions">
+          <button type="button" id="peekSelectAllBtn" class="pill-action" title="Select all visible messages for the quote card">Select all</button>
+          <button type="button" id="peekQuoteBtn" class="pill-action accent-pill" title="Save the selected message(s) as an Out of Context PNG quote card">📸 Quote card</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Archetype Breakdown modal -->
+  <div id="archModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="archModalTitle" hidden>
+    <div class="modal-card arch-card">
+      <div class="modal-head">
+        <div class="modal-head-text">
+          <span id="archModalTitle" class="modal-title">Chat archetype</span>
+          <span id="archModalSub" class="modal-sub">How your chat earned this title</span>
+        </div>
+        <button type="button" id="archCloseBtn" class="icon-close" aria-label="Close">×</button>
+      </div>
+      <div id="archBody" class="arch-body"></div>
+      <div class="peek-foot">
+        <button type="button" id="archWrappedBtn" class="pill-action accent-pill">✨ Open Chat Wrapped</button>
+        <button type="button" id="archDoneBtn" class="pill-action">Done</button>
       </div>
     </div>
   </div>

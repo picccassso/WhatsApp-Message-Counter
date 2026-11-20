@@ -303,8 +303,8 @@ function roundTrip(f) {
   check('groupLore first created', [ins.groupLore.changes[0].kind, ins.groupLore.changes[0].subject], ['created', 'Trip plans']);
   check('groupLore topRenamer', ins.groupLore.topRenamer, { actor: 'Sam', count: 2 });
 
-  // Archetype is populated
-  check('archetype has icon & title', Boolean(ins.archetype && ins.archetype.icon && ins.archetype.title), true);
+  // Archetype is populated with reason, vitals, and catalog
+  check('archetype has icon, title, reason & vitals', Boolean(ins.archetype && ins.archetype.icon && ins.archetype.title && ins.archetype.reason && ins.archetype.vitals.length === 6 && ins.archetype.all.length >= 10), true);
 
   // On This Day: ref date 12 May 2026 finds both 2025 and 2024
   const otd = findOnThisDay(r, new Date(2026, 4, 12));
@@ -326,18 +326,20 @@ function roundTrip(f) {
   check('solo chat archetype is diary', arch.title, 'Solo Brain-Dump Diary');
 }
 
-// iOS chat-name-prefixed system notices (encryption banner + group subject changes)
+// iOS chat-name-prefixed system notices (encryption banner, contact banner, disappearing msgs, group subject changes)
 {
   const raw = [
     '[16/11/2026, 21:00:21] ula 🥰: \u200EMessages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.',
+    '[16/11/2026, 21:00:21] ula 🥰: \u200Eula 🥰 is a contact.',
+    '[16/11/2026, 21:00:22] ula 🥰: You turned on disappearing messages. New messages will disappear from this chat 24 hours after they\'re sent.',
     '[16/11/2026, 21:00:22] Trip Chat: Alex created group "Trip Chat"',
     '[16/11/2026, 21:01:00] ula 🥰: heyyy!',
     '[16/11/2026, 21:01:15] Alex: hey!!',
     '[16/11/2026, 21:02:00] Trip Chat: Alex changed the subject to "Lisbon 2026"',
   ].join('\n');
   const r = parse(raw);
-  check('iOS prefixed encryption & subject notices skipped from messages', r.total, 2);
-  check('iOS prefixed notices counted as systemNotes', r.systemNotes, 3);
+  check('iOS prefixed system notices skipped from messages', r.total, 2);
+  check('iOS prefixed notices counted as systemNotes', r.systemNotes, 5);
   check('iOS Day 1 message is actual first text', r.messages[0].text, 'heyyy!');
   const ins = insights(r);
   check('iOS prefixed groupLore extracts clean actor & subjects', ins.groupLore.changes.map((c) => [c.actor, c.subject]), [
@@ -345,7 +347,7 @@ function roundTrip(f) {
     ['Alex', 'Lisbon 2026'],
   ]);
   const rt = parse(toText(r));
-  check('iOS prefixed notices round-trip cleanly', [rt.total, rt.systemNotes], [2, 3]);
+  check('iOS prefixed notices round-trip cleanly', [rt.total, rt.systemNotes], [2, 5]);
 }
 
 if (failures) {

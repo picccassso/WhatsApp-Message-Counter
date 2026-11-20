@@ -94,7 +94,16 @@
   const peekDay1Btn = $('peekDay1Btn');
   const peekRandomBtn = $('peekRandomBtn');
   const peekNextBtn = $('peekNextBtn');
+  const peekSelectAllBtn = $('peekSelectAllBtn');
   const peekQuoteBtn = $('peekQuoteBtn');
+
+  const archModal = $('archModal');
+  const archModalTitle = $('archModalTitle');
+  const archModalSub = $('archModalSub');
+  const archBody = $('archBody');
+  const archCloseBtn = $('archCloseBtn');
+  const archWrappedBtn = $('archWrappedBtn');
+  const archDoneBtn = $('archDoneBtn');
 
   const wrappedModal = $('wrappedModal');
   const wrappedBars = $('wrappedBars');
@@ -339,7 +348,20 @@
     wrappedBtn.addEventListener('click', openWrapped);
   }
   if (archetypeBadge) {
-    archetypeBadge.addEventListener('click', openWrapped);
+    archetypeBadge.addEventListener('click', openArchetypeModal);
+  }
+  if (archCloseBtn) archCloseBtn.addEventListener('click', closeArchetypeModal);
+  if (archDoneBtn) archDoneBtn.addEventListener('click', closeArchetypeModal);
+  if (archModal) {
+    archModal.addEventListener('click', (e) => {
+      if (e.target === archModal) closeArchetypeModal();
+    });
+  }
+  if (archWrappedBtn) {
+    archWrappedBtn.addEventListener('click', () => {
+      closeArchetypeModal();
+      openWrapped();
+    });
   }
   if (soundToggleBtn) {
     soundToggleBtn.addEventListener('click', () => {
@@ -481,6 +503,7 @@
       if (!current || !current.peek) return;
       stopPeekReplay();
       current.peek.index = Math.max(0, current.peek.index - 4);
+      current.peek.selected = new Set([current.peek.index]);
       current.peek.title = 'Moment peek';
       renderPeekWindow();
     });
@@ -490,6 +513,7 @@
       if (!current || !current.peek) return;
       stopPeekReplay();
       current.peek.index = Math.min(current.result.messages.length - 1, current.peek.index + 4);
+      current.peek.selected = new Set([current.peek.index]);
       current.peek.title = 'Moment peek';
       renderPeekWindow();
     });
@@ -502,10 +526,26 @@
   }
   if (peekRandomBtn) peekRandomBtn.addEventListener('click', () => openRandomPeek());
   if (peekReplayBtn) peekReplayBtn.addEventListener('click', togglePeekReplay);
+  if (peekSelectAllBtn) {
+    peekSelectAllBtn.addEventListener('click', () => {
+      if (!current || !current.peek || current.peek.replaying) return;
+      const { start, end } = peekWindowBounds();
+      const totalVisible = end - start + 1;
+      if (current.peek.selected.size >= totalVisible) {
+        current.peek.selected = new Set([current.peek.index]);
+      } else {
+        const all = new Set();
+        for (let i = start; i <= end; i++) all.add(i);
+        current.peek.selected = all;
+      }
+      syncPeekSelectionUI();
+    });
+  }
   if (peekQuoteBtn) {
     peekQuoteBtn.addEventListener('click', () => {
       if (!current || !current.peek) return;
-      saveQuoteCard(current.peek.index, peekQuoteBtn);
+      const indices = Array.from(current.peek.selected || [current.peek.index]).sort((a, b) => a - b);
+      saveQuoteCard(indices, peekQuoteBtn);
     });
   }
 
@@ -536,6 +576,7 @@
     if (e.key === 'Escape') {
       closeCardMenu();
       if (peekModal && !peekModal.hidden) closePeek();
+      if (archModal && !archModal.hidden) closeArchetypeModal();
       if (wrappedModal && !wrappedModal.hidden) closeWrapped();
     } else if (wrappedModal && !wrappedModal.hidden) {
       if (e.key === 'ArrowRight' || e.key === ' ') {
@@ -605,6 +646,7 @@
     stopLensAuto();
     stopRace(false);
     closePeek();
+    closeArchetypeModal();
     closeWrapped();
     closeCardMenu();
     if (typingStatus) typingStatus.hidden = true;
@@ -724,6 +766,7 @@
     stopLensAuto();
     stopRace(false);
     closePeek();
+    closeArchetypeModal();
     closeWrapped();
     closeCardMenu();
 
@@ -868,7 +911,9 @@
     if (reduceMotion || lensPaused || document.hidden || !current || resultSection.hidden) return;
     lensTimer = setTimeout(() => {
       if (!current || lensPaused || document.hidden || resultSection.hidden) return;
-      const modalOpen = (peekModal && !peekModal.hidden) || (wrappedModal && !wrappedModal.hidden);
+      const modalOpen = (peekModal && !peekModal.hidden)
+        || (archModal && !archModal.hidden)
+        || (wrappedModal && !wrappedModal.hidden);
       if (!modalOpen) {
         current.lensIndex = (current.lensIndex + 1) % LENS_COUNT;
         updateAnswerBubble(false, true);
@@ -955,8 +1000,133 @@
     sub.className = 'archetype-sub';
     sub.textContent = arch.tagline;
     txt.append(title, sub);
-    archetypeBadge.append(icon, txt);
+    const cue = document.createElement('span');
+    cue.className = 'archetype-cue';
+    cue.textContent = 'why?';
+    archetypeBadge.append(icon, txt, cue);
     archetypeBadge.hidden = false;
+  }
+
+  function openArchetypeModal() {
+    if (!current || !archModal || !archBody) return;
+    const arch = current.insights.archetype;
+    if (!arch) return;
+
+    if (archModalTitle) archModalTitle.textContent = `${arch.icon} ${arch.title}`;
+    if (archModalSub) archModalSub.textContent = 'Why your chat earned this archetype';
+
+    archBody.textContent = '';
+
+    // Hero summary
+    const hero = document.createElement('div');
+    hero.className = 'arch-hero';
+    const ic = document.createElement('span');
+    ic.className = 'arch-hero-icon';
+    ic.textContent = arch.icon;
+    const hText = document.createElement('div');
+    hText.className = 'arch-hero-text';
+    const hStrong = document.createElement('strong');
+    hStrong.textContent = arch.title;
+    const hTag = document.createElement('span');
+    hTag.textContent = arch.tagline;
+    hText.append(hStrong, hTag);
+    hero.append(ic, hText);
+    archBody.appendChild(hero);
+
+    // Personalized reason + rule
+    if (arch.reason) {
+      const p = document.createElement('p');
+      p.className = 'arch-reason';
+      p.textContent = arch.reason;
+      archBody.appendChild(p);
+    }
+    if (arch.criteria) {
+      const crit = document.createElement('p');
+      crit.className = 'arch-criteria';
+      crit.textContent = `Rule: ${arch.criteria}`;
+      archBody.appendChild(crit);
+    }
+
+    // 6 DNA Vitals
+    if (arch.vitals && arch.vitals.length) {
+      const sec = document.createElement('div');
+      const h = document.createElement('h4');
+      h.className = 'arch-sec-title';
+      h.textContent = 'Your chat DNA';
+      const grid = document.createElement('div');
+      grid.className = 'arch-vitals';
+      for (const v of arch.vitals) {
+        const cell = document.createElement('div');
+        cell.className = 'arch-vital';
+        const top = document.createElement('div');
+        top.className = 'arch-vital-top';
+        const lbl = document.createElement('span');
+        lbl.textContent = v.label;
+        const val = document.createElement('strong');
+        val.textContent = v.value;
+        top.append(lbl, val);
+        const bar = document.createElement('span');
+        bar.className = 'arch-vital-bar';
+        const fill = document.createElement('i');
+        fill.style.width = Math.max(3, Math.min(100, v.pct || 0)) + '%';
+        bar.appendChild(fill);
+        cell.append(top, bar);
+        grid.appendChild(cell);
+      }
+      sec.append(h, grid);
+      archBody.appendChild(sec);
+    }
+
+    // Runner-up traits this chat also qualified for
+    if (arch.runnersUp && arch.runnersUp.length) {
+      const sec = document.createElement('div');
+      const h = document.createElement('h4');
+      h.className = 'arch-sec-title';
+      h.textContent = 'Also qualified for';
+      const list = document.createElement('div');
+      list.className = 'arch-runners';
+      for (const r of arch.runnersUp) {
+        const card = document.createElement('div');
+        card.className = 'arch-runner';
+        const st = document.createElement('strong');
+        st.textContent = `${r.icon} ${r.title}`;
+        const sp = document.createElement('span');
+        sp.textContent = r.reason || r.tagline;
+        card.append(st, sp);
+        list.appendChild(card);
+      }
+      sec.append(h, list);
+      archBody.appendChild(sec);
+    }
+
+    // Collapsible catalog of all possible archetypes
+    if (arch.all && arch.all.length) {
+      const details = document.createElement('details');
+      details.className = 'arch-details';
+      const summary = document.createElement('summary');
+      summary.textContent = `See all ${arch.all.length} chat archetypes & rules`;
+      const ul = document.createElement('ul');
+      ul.className = 'arch-catalog';
+      for (const item of arch.all) {
+        const li = document.createElement('li');
+        li.className = 'arch-cat-item' + (item.id === arch.id ? ' yours' : '');
+        const st = document.createElement('strong');
+        st.textContent = `${item.icon} ${item.title}` + (item.id === arch.id ? ' (yours)' : item.matched ? ' ✓' : '');
+        const sp = document.createElement('span');
+        sp.textContent = item.criteria;
+        li.append(st, sp);
+        ul.appendChild(li);
+      }
+      details.append(summary, ul);
+      archBody.appendChild(details);
+    }
+
+    archModal.hidden = false;
+    if (archCloseBtn) archCloseBtn.focus();
+  }
+
+  function closeArchetypeModal() {
+    if (archModal) archModal.hidden = true;
   }
 
   function renderVibes() {
@@ -2886,11 +3056,24 @@
     openPeek(pick, '🎲 Random memory');
   }
 
+  function peekWindowBounds() {
+    const msgs = current.result.messages;
+    const idx = current.peek.index;
+    const start = Math.max(0, idx - 2);
+    const end = Math.min(msgs.length - 1, idx + 2);
+    return { start, end };
+  }
+
   function openPeek(index, title) {
     if (!current || !peekModal) return;
     stopPeekReplay();
     const clamped = Math.max(0, Math.min(current.result.messages.length - 1, index));
-    current.peek = { index: clamped, title: title || 'Moment peek', replaying: false };
+    current.peek = {
+      index: clamped,
+      selected: new Set([clamped]),
+      title: title || 'Moment peek',
+      replaying: false,
+    };
     renderPeekWindow();
     peekModal.hidden = false;
     if (peekCloseBtn) peekCloseBtn.focus();
@@ -2902,20 +3085,56 @@
     if (current) current.peek = null;
   }
 
-  function createPeekBubbleEl(i, m, rightSender, isTarget, animate) {
+  function syncPeekSelectionUI() {
+    if (!current || !current.peek || !peekMessages) return;
+    const msgs = current.result.messages;
+    const sel = current.peek.selected || new Set([current.peek.index]);
+    const sorted = Array.from(sel).sort((a, b) => a - b);
+    const { start, end } = peekWindowBounds();
+    const totalVisible = end - start + 1;
+
+    for (const el of peekMessages.querySelectorAll('.peek-msg')) {
+      const i = Number(el.dataset.idx);
+      el.classList.toggle('target', sel.has(i));
+    }
+
+    if (peekSub) {
+      if (sorted.length <= 1) {
+        const one = sorted[0] != null ? sorted[0] : current.peek.index;
+        peekSub.textContent = `message #${numberFmt.format(one + 1)} of ${numberFmt.format(msgs.length)} · tap bubbles to multi-select`;
+      } else {
+        const first = sorted[0];
+        const last = sorted[sorted.length - 1];
+        peekSub.textContent = `${sorted.length} messages selected (#${numberFmt.format(first + 1)}–#${numberFmt.format(last + 1)})`;
+      }
+    }
+
+    if (peekSelectAllBtn) {
+      peekSelectAllBtn.hidden = totalVisible < 2;
+      peekSelectAllBtn.textContent = sel.size >= totalVisible ? 'Just 1' : 'Select all';
+    }
+
+    if (peekQuoteBtn) {
+      const label = sorted.length > 1 ? `📸 Quote card (${sorted.length})` : '📸 Quote card';
+      peekQuoteBtn.textContent = label;
+    }
+  }
+
+  function createPeekBubbleEl(i, m, rightSender, isSelected, animate) {
     const row = document.createElement('div');
     const isRight = m.sender === rightSender;
-    row.className = 'peek-msg ' + (isRight ? 'out' : 'in') + (isTarget ? ' target' : '') + (animate ? ' entering' : '');
-    row.title = 'Click to select this message for Quote card';
+    row.className = 'peek-msg ' + (isRight ? 'out' : 'in') + (isSelected ? ' target' : '') + (animate ? ' entering' : '');
+    row.dataset.idx = String(i);
+    row.title = 'Click to toggle this message in your Quote card';
     row.addEventListener('click', () => {
       if (!current || !current.peek || current.peek.replaying) return;
-      current.peek.index = i;
-      if (peekSub) {
-        peekSub.textContent = `message #${numberFmt.format(i + 1)} of ${numberFmt.format(current.result.messages.length)} · ${m.ts}`;
+      const sel = current.peek.selected;
+      if (sel.has(i)) {
+        if (sel.size > 1) sel.delete(i);
+      } else {
+        sel.add(i);
       }
-      for (const el of peekMessages.querySelectorAll('.peek-msg')) {
-        el.classList.toggle('target', el === row);
-      }
+      syncPeekSelectionUI();
     });
 
     const senderEl = document.createElement('span');
@@ -2939,12 +3158,13 @@
     stopPeekReplay();
     const msgs = current.result.messages;
     const idx = current.peek.index;
-    const start = Math.max(0, idx - 2);
-    const end = Math.min(msgs.length - 1, idx + 2);
+    const { start, end } = peekWindowBounds();
     const rightSender = current.result.senders[0] ? current.result.senders[0].sender : null;
+    if (!current.peek.selected || !current.peek.selected.size) {
+      current.peek.selected = new Set([idx]);
+    }
 
     if (peekTitle) peekTitle.textContent = current.peek.title;
-    if (peekSub) peekSub.textContent = `message #${numberFmt.format(idx + 1)} of ${numberFmt.format(msgs.length)} · ${msgs[idx].ts}`;
     if (peekPrevBtn) peekPrevBtn.disabled = start === 0;
     if (peekNextBtn) peekNextBtn.disabled = end === msgs.length - 1;
     if (peekDay1Btn) peekDay1Btn.disabled = idx === 0;
@@ -2960,8 +3180,9 @@
         gapEl.textContent = `🌵 ${formatDuration(ls.ms)} of silence`;
         peekMessages.appendChild(gapEl);
       }
-      peekMessages.appendChild(createPeekBubbleEl(i, m, rightSender, i === idx, false));
+      peekMessages.appendChild(createPeekBubbleEl(i, m, rightSender, current.peek.selected.has(i), false));
     }
+    syncPeekSelectionUI();
   }
 
   function togglePeekReplay() {
@@ -3018,7 +3239,7 @@
       const t1 = setTimeout(() => {
         if (!current || !current.peek || !current.peek.replaying) return;
         typingEl.remove();
-        const bubble = createPeekBubbleEl(i, m, rightSender, i === idx, true);
+        const bubble = createPeekBubbleEl(i, m, rightSender, current.peek.selected.has(i), true);
         peekMessages.appendChild(bubble);
         peekMessages.scrollTop = peekMessages.scrollHeight;
         if (soundEnabled) playSenderNote(m.sender, 0.55);
@@ -3033,12 +3254,13 @@
   }
 
   function wrapCanvasLines(ctx, text, maxW, maxLines) {
+    const limit = maxLines == null ? Infinity : maxLines;
     const paragraphs = String(text).split(/\r?\n/);
     const lines = [];
     for (const para of paragraphs) {
       const words = para.split(/\s+/).filter(Boolean);
       if (!words.length) {
-        if (lines.length < maxLines) lines.push('');
+        if (lines.length < limit) lines.push('');
         continue;
       }
       let line = '';
@@ -3049,7 +3271,7 @@
         } else {
           if (line) {
             lines.push(line);
-            if (lines.length >= maxLines) break;
+            if (lines.length >= limit) break;
           }
           // Handle super long unbreakable tokens (e.g. URLs)
           if (ctx.measureText(word).width > maxW) {
@@ -3057,7 +3279,7 @@
             for (const ch of word) {
               if (ctx.measureText(chunk + ch).width > maxW && chunk) {
                 lines.push(chunk);
-                if (lines.length >= maxLines) break;
+                if (lines.length >= limit) break;
                 chunk = ch;
               } else {
                 chunk += ch;
@@ -3068,39 +3290,98 @@
             line = word;
           }
         }
-        if (lines.length >= maxLines) break;
+        if (lines.length >= limit) break;
       }
-      if (line && lines.length < maxLines) lines.push(line);
-      if (lines.length >= maxLines) break;
+      if (line && lines.length < limit) lines.push(line);
+      if (lines.length >= limit) break;
     }
-    if (lines.length === maxLines && paragraphs.join(' ').length > lines.join(' ').length + 3) {
-      lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…';
+    if (Number.isFinite(limit) && lines.length === limit && paragraphs.join(' ').length > lines.join(' ').length + 3) {
+      lines[limit - 1] = lines[limit - 1].replace(/\s*\S*$/, '') + '…';
     }
     return lines.length ? lines : [' '];
   }
 
-  function saveQuoteCard(msgIdx, feedbackBtn) {
+  function saveQuoteCard(msgIndices, feedbackBtn) {
     if (!current) return;
-    const m = current.result.messages[msgIdx];
-    if (!m) return;
+    const indices = (Array.isArray(msgIndices) ? msgIndices : [msgIndices])
+      .filter((idx) => idx >= 0 && idx < current.result.messages.length);
+    if (!indices.length) return;
 
     const W = 1080;
-    const rawBody = m.media ? '📎 Media message' : textFor(m.text);
-    const senderLabel = labelFor(m.sender);
-    const senderColor = current.colors.get(m.sender) || '#00a884';
-
-    // Measure text height first so short & long quotes both look razor sharp
     const probe = document.createElement('canvas').getContext('2d');
     if (!probe) return;
-    const fontSize = rawBody.length > 180 ? 34 : rawBody.length > 90 ? 40 : 48;
-    const lineHeight = Math.round(fontSize * 1.38);
-    probe.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
-    const bubbleW = W - 180;
-    const innerMaxW = bubbleW - 88;
-    const lines = wrapCanvasLines(probe, rawBody, innerMaxW, 10);
 
-    const bubbleH = Math.max(220, 128 + lines.length * lineHeight + 56);
-    const H = Math.max(640, bubbleH + 340);
+    const isMulti = indices.length > 1;
+    const rightSender = current.result.senders[0] ? current.result.senders[0].sender : null;
+    const totalChars = indices.reduce((sum, i) => sum + (current.result.messages[i].media ? 16 : textFor(current.result.messages[i].text).length), 0);
+
+    // Measure every selected bubble in full (never truncating any message!)
+    const padX = 90;
+    const contentW = W - padX * 2;
+    const fontSize = isMulti
+      ? (totalChars > 500 ? 28 : 33)
+      : (totalChars > 500 ? 30 : totalChars > 220 ? 35 : totalChars > 90 ? 40 : 48);
+    const lineHeight = Math.round(fontSize * 1.4);
+    const senderFontSize = isMulti ? 24 : 28;
+    const tsFontSize = isMulti ? 19 : 22;
+
+    const blocks = [];
+    for (let k = 0; k < indices.length; k++) {
+      const idx = indices[k];
+      const m = current.result.messages[idx];
+      const isRight = isMulti && m.sender === rightSender;
+      const body = m.media ? '📎 Media message' : textFor(m.text);
+      const senderLabel = labelFor(m.sender);
+      const senderColor = isRight ? '#a7f3d0' : (current.colors.get(m.sender) || '#00a884');
+      const maxBubbleW = isMulti ? Math.round(contentW * 0.84) : contentW;
+      const innerPadX = isMulti ? 34 : 44;
+      const innerMaxW = maxBubbleW - innerPadX * 2;
+
+      probe.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+      const lines = wrapCanvasLines(probe, body, innerMaxW, Infinity);
+
+      // Fit bubble width naturally for multi-message exchanges so short replies look crisp
+      let bubbleW = maxBubbleW;
+      if (isMulti) {
+        let widest = 0;
+        for (const ln of lines) widest = Math.max(widest, probe.measureText(ln).width);
+        probe.font = `700 ${senderFontSize}px "Space Grotesk", system-ui, sans-serif`;
+        widest = Math.max(widest, probe.measureText(senderLabel.slice(0, 36)).width);
+        probe.font = `400 ${tsFontSize}px "Space Grotesk", system-ui, sans-serif`;
+        widest = Math.max(widest, probe.measureText(m.ts).width + (isRight ? 42 : 0));
+        bubbleW = Math.min(maxBubbleW, Math.max(300, Math.ceil(widest + innerPadX * 2 + 12)));
+      }
+
+      const headerOffset = isMulti ? 52 : 64;
+      const bodyStartY = isMulti ? 96 : 118;
+      const bottomPad = isMulti ? 54 : 66;
+      const bubbleH = Math.max(isMulti ? 140 : 220, bodyStartY + (lines.length - 1) * lineHeight + fontSize * 0.4 + bottomPad);
+
+      const skippedGap = k > 0 && idx - indices[k - 1] > 1;
+      const samePrevSender = k > 0 && !skippedGap && current.result.messages[indices[k - 1]].sender === m.sender;
+      const gapBefore = k === 0 ? 0 : (skippedGap ? 52 : samePrevSender ? 16 : 26);
+
+      blocks.push({
+        idx,
+        m,
+        isRight,
+        senderLabel,
+        senderColor,
+        lines,
+        bubbleW,
+        bubbleH,
+        innerPadX,
+        headerOffset,
+        bodyStartY,
+        skippedGap,
+        gapBefore,
+      });
+    }
+
+    const totalBubblesH = blocks.reduce((sum, b) => sum + b.gapBefore + b.bubbleH, 0);
+    const topChrome = 165;
+    const bottomChrome = 135;
+    const H = Math.max(640, topChrome + totalBubblesH + bottomChrome);
 
     const c = document.createElement('canvas');
     c.width = W;
@@ -3108,11 +3389,12 @@
     const ctx = c.getContext('2d');
     if (!ctx) return;
 
-    // Dark background + ambient glow
+    // Dark background + subtle ambient glow
     ctx.fillStyle = '#0b141a';
     ctx.fillRect(0, 0, W, H);
-    const grad = ctx.createRadialGradient(W * 0.82, H * 0.16, 20, W * 0.82, H * 0.16, 480);
-    grad.addColorStop(0, hexToRgba(senderColor, 0.2));
+    const glowColor = current.colors.get(blocks[0].m.sender) || '#00a884';
+    const grad = ctx.createRadialGradient(W * 0.82, Math.min(260, H * 0.16), 20, W * 0.82, Math.min(260, H * 0.16), 520);
+    grad.addColorStop(0, hexToRgba(glowColor, 0.2));
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
@@ -3136,41 +3418,73 @@
     ctx.fillStyle = '#8696a0';
     ctx.font = '400 20px "Space Grotesk", system-ui, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(`message #${numberFmt.format(msgIdx + 1)}`, W - 88, 110);
+    const countLabel = isMulti
+      ? `${indices.length} messages · #${numberFmt.format(indices[0] + 1)}–#${numberFmt.format(indices[indices.length - 1] + 1)}`
+      : `message #${numberFmt.format(indices[0] + 1)}`;
+    ctx.fillText(countLabel, W - 88, 110);
     ctx.textAlign = 'left';
 
-    // WhatsApp incoming bubble + left tail
-    const bx = 90;
-    const by = Math.round((H - bubbleH) / 2) + 8;
-    ctx.fillStyle = '#202c33';
-    roundRectPath(ctx, bx, by, bubbleW, bubbleH, 30);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.moveTo(bx + 12, by + bubbleH - 28);
-    ctx.lineTo(bx - 16, by + bubbleH);
-    ctx.lineTo(bx + 26, by + bubbleH);
-    ctx.closePath();
-    ctx.fill();
+    // Vertically center the bubbles inside the available stage
+    let yCursor = Math.round(topChrome + Math.max(0, (H - topChrome - bottomChrome - totalBubblesH) / 2));
 
-    // Colored sender name
-    ctx.fillStyle = senderColor;
-    ctx.font = '700 28px "Space Grotesk", system-ui, sans-serif';
-    ctx.fillText(senderLabel.slice(0, 36), bx + 44, by + 64);
+    for (const b of blocks) {
+      if (b.skippedGap) {
+        const dotY = yCursor + 24;
+        ctx.fillStyle = '#8696a0';
+        ctx.font = '600 22px "Space Grotesk", system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('•  •  •', W / 2, dotY);
+        ctx.textAlign = 'left';
+      }
+      yCursor += b.gapBefore;
 
-    // Wrapped message body
-    ctx.fillStyle = '#e9edef';
-    ctx.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
-    lines.forEach((ln, idx) => {
-      ctx.fillText(ln, bx + 44, by + 118 + idx * lineHeight);
-    });
+      const bx = b.isRight ? (W - padX - b.bubbleW) : padX;
+      const by = yCursor;
+      const radius = isMulti ? 24 : 30;
 
-    // Timestamp + blue double ticks
-    ctx.fillStyle = 'rgba(233, 237, 239, 0.58)';
-    ctx.font = '400 22px "Space Grotesk", system-ui, sans-serif';
-    ctx.textAlign = 'right';
-    ctx.fillText(m.ts, bx + bubbleW - 86, by + bubbleH - 32);
-    ctx.textAlign = 'left';
-    drawDoubleTicks(ctx, bx + bubbleW - 72, by + bubbleH - 48, 3.2);
+      ctx.fillStyle = b.isRight ? '#005c4b' : '#202c33';
+      roundRectPath(ctx, bx, by, b.bubbleW, b.bubbleH, radius);
+      ctx.fill();
+
+      // WhatsApp bubble tail
+      ctx.beginPath();
+      if (b.isRight) {
+        ctx.moveTo(bx + b.bubbleW - 12, by + b.bubbleH - 24);
+        ctx.lineTo(bx + b.bubbleW + 14, by + b.bubbleH);
+        ctx.lineTo(bx + b.bubbleW - 24, by + b.bubbleH);
+      } else {
+        ctx.moveTo(bx + 12, by + b.bubbleH - 24);
+        ctx.lineTo(bx - 14, by + b.bubbleH);
+        ctx.lineTo(bx + 24, by + b.bubbleH);
+      }
+      ctx.closePath();
+      ctx.fill();
+
+      // Colored sender name
+      ctx.fillStyle = b.senderColor;
+      ctx.font = `700 ${senderFontSize}px "Space Grotesk", system-ui, sans-serif`;
+      ctx.fillText(b.senderLabel.slice(0, 36), bx + b.innerPadX, by + b.headerOffset);
+
+      // Wrapped full message body
+      ctx.fillStyle = '#e9edef';
+      ctx.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+      b.lines.forEach((ln, li) => {
+        ctx.fillText(ln, bx + b.innerPadX, by + b.bodyStartY + li * lineHeight);
+      });
+
+      // Timestamp (+ blue double ticks on single-bubble or right-aligned outgoing bubbles)
+      const showTicks = !isMulti || b.isRight;
+      ctx.fillStyle = 'rgba(233, 237, 239, 0.58)';
+      ctx.font = `400 ${tsFontSize}px "Space Grotesk", system-ui, sans-serif`;
+      ctx.textAlign = 'right';
+      ctx.fillText(b.m.ts, bx + b.bubbleW - (showTicks ? 72 : 30), by + b.bubbleH - 24);
+      ctx.textAlign = 'left';
+      if (showTicks) {
+        drawDoubleTicks(ctx, bx + b.bubbleW - 60, by + b.bubbleH - 38, isMulti ? 2.6 : 3.2);
+      }
+
+      yCursor += b.bubbleH;
+    }
 
     // Footer
     const chatLabel = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.txt$/i, '');
@@ -3179,16 +3493,18 @@
     ctx.fillText(`${chatLabel.slice(0, 36)} · whatsapp message counter`, 90, H - 72);
 
     const base = current.anon ? 'anonymized-quote' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '') + '-quote';
-    const filename = `${base}-${msgIdx + 1}.png`;
+    const rangeTag = isMulti ? `${indices[0] + 1}-${indices[indices.length - 1] + 1}` : `${indices[0] + 1}`;
+    const filename = `${base}-${rangeTag}.png`;
     const dataUrl = c.toDataURL('image/png');
     const blob = dataUrlToBlob(dataUrl);
 
     const flashBtn = (label) => {
       if (!feedbackBtn) return;
-      const prev = feedbackBtn.dataset.origLabel || feedbackBtn.textContent;
-      feedbackBtn.dataset.origLabel = prev;
       feedbackBtn.textContent = label;
-      setTimeout(() => { feedbackBtn.textContent = prev; }, 1600);
+      setTimeout(() => {
+        if (current && current.peek) syncPeekSelectionUI();
+        else feedbackBtn.textContent = '📸 Quote card';
+      }, 1600);
     };
 
     const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
