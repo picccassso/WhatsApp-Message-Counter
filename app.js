@@ -2457,61 +2457,142 @@
 
       const btns = document.createElement('div');
       btns.className = 'w-share-btns';
+      const preview = document.createElement('div');
+      preview.className = 'w-card-preview';
+      preview.hidden = true;
+
       const bStory = document.createElement('button');
       bStory.type = 'button';
       bStory.className = 'again-btn accent-btn';
       bStory.textContent = 'Save 9:16 Story card (PNG)';
-      bStory.addEventListener('click', () => saveCard('story', bStory));
+      bStory.addEventListener('click', () => saveCard('story', bStory, preview));
 
       const bWide = document.createElement('button');
       bWide.type = 'button';
       bWide.className = 'again-btn';
       bWide.textContent = 'Save 16:9 Landscape card (PNG)';
-      bWide.addEventListener('click', () => saveCard('wide', bWide));
+      bWide.addEventListener('click', () => saveCard('wide', bWide, preview));
 
       btns.append(bStory, bWide);
-      wrappedSlide.appendChild(btns);
+      wrappedSlide.append(btns, preview);
     }
   }
 
   /* ---------- shareable PNG receipt cards (16:9 landscape + 9:16 story) ---------- */
 
-  function saveCard(format, feedbackBtn) {
+  function roundRectPath(ctx, x, y, w, h, r) {
+    const rad = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(x, y, w, h, rad);
+      return;
+    }
+    ctx.moveTo(x + rad, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rad);
+    ctx.arcTo(x + w, y + h, x, y + h, rad);
+    ctx.arcTo(x, y + h, x, y, rad);
+    ctx.arcTo(x, y, x + w, y, rad);
+    ctx.closePath();
+  }
+
+  function dataUrlToBlob(dataUrl) {
+    const parts = dataUrl.split(',');
+    const mime = (parts[0].match(/:(.*?);/) || [])[1] || 'image/png';
+    const bin = atob(parts[1]);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  }
+
+  function triggerDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  function saveCard(format, feedbackBtn, previewEl) {
     if (!current) return;
     const isStory = format === 'story';
     const W = isStory ? 1080 : 1200;
     const H = isStory ? 1920 : 675;
-    const scale = 2;
+    // Story is already native 1080x1920 Full HD; wide uses 2x for crisp retina output.
+    const scale = isStory ? 1 : 2;
     const c = document.createElement('canvas');
     c.width = W * scale;
     c.height = H * scale;
     const ctx = c.getContext('2d');
+    if (!ctx) return;
     ctx.scale(scale, scale);
 
-    if (isStory) {
-      drawStoryCard(ctx, W, H);
-    } else {
-      drawWideCard(ctx, W, H);
+    try {
+      if (isStory) {
+        drawStoryCard(ctx, W, H);
+      } else {
+        drawWideCard(ctx, W, H);
+      }
+    } catch (err) {
+      console.error('Card render failed:', err);
+      return;
     }
 
-    c.toBlob((blob) => {
-      if (!blob) return;
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const base = current.anon ? 'anonymized-chat' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '');
-      a.download = base + (isStory ? '-story.png' : '-card.png');
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-      const targetBtn = feedbackBtn || cardBtn;
-      if (targetBtn) {
-        const prev = targetBtn.textContent;
-        targetBtn.textContent = 'Saved!';
-        setTimeout(() => { targetBtn.textContent = prev; }, 1400);
+    const base = current.anon ? 'anonymized-chat' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '');
+    const filename = base + (isStory ? '-story.png' : '-card.png');
+
+    // Synchronous encoding keeps Safari / mobile user-gesture activation intact.
+    const dataUrl = c.toDataURL('image/png');
+    const blob = dataUrlToBlob(dataUrl);
+
+    if (previewEl) {
+      previewEl.textContent = '';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.alt = isStory ? '9:16 Story card preview' : '16:9 Landscape card preview';
+      const tip = document.createElement('span');
+      tip.textContent = 'Long-press or right-click image to save if download did not start';
+      previewEl.append(img, tip);
+      previewEl.hidden = false;
+    }
+
+    const targetBtn = feedbackBtn || cardBtn;
+    const flashBtn = (label) => {
+      if (!targetBtn) return;
+      const prev = targetBtn.dataset.origLabel || targetBtn.textContent;
+      targetBtn.dataset.origLabel = prev;
+      targetBtn.textContent = label;
+      setTimeout(() => { targetBtn.textContent = prev; }, 1600);
+    };
+
+    // On mobile touch browsers with Web Share Level 2, offer the native share/save sheet.
+    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (isTouch && typeof File === 'function' && navigator.share && navigator.canShare) {
+      try {
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          flashBtn('Opening share…');
+          navigator.share({ files: [file], title: 'Chat Wrapped' }).then(
+            () => flashBtn('Shared!'),
+            (err) => {
+              if (!err || err.name !== 'AbortError') {
+                triggerDownload(blob, filename);
+                flashBtn('Saved!');
+              }
+            }
+          );
+          return;
+        }
+      } catch {
+        // Fall through to standard download
       }
-    }, 'image/png');
+    }
+
+    triggerDownload(blob, filename);
+    flashBtn('Saved!');
   }
 
   function drawMiniStripOnCard(ctx, sx, sy, sw, sh, maxBuckets) {
@@ -2552,8 +2633,7 @@
     ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = '#2a3942';
     ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.roundRect(24, 24, W - 48, H - 48, 28);
+    roundRectPath(ctx, 24, 24, W - 48, H - 48, 28);
     ctx.stroke();
 
     // Header
@@ -2582,8 +2662,7 @@
     // Left hero WhatsApp bubble
     const bx = 60, by = 165, bw = 440, bh = 250;
     ctx.fillStyle = '#005c4b';
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 26);
+    roundRectPath(ctx, bx, by, bw, bh, 26);
     ctx.fill();
 
     ctx.fillStyle = '#e9edef';
@@ -2659,8 +2738,7 @@
     // Outer hairline frame
     ctx.strokeStyle = '#2a3942';
     ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.roundRect(42, 42, W - 84, H - 84, 44);
+    roundRectPath(ctx, 42, 42, W - 84, H - 84, 44);
     ctx.stroke();
 
     // Header
@@ -2684,8 +2762,7 @@
     // Hero bubble
     const bx = 92, by = 285, bw = W - 184, bh = 320;
     ctx.fillStyle = '#005c4b';
-    ctx.beginPath();
-    ctx.roundRect(bx, by, bw, bh, 36);
+    roundRectPath(ctx, bx, by, bw, bh, 36);
     ctx.fill();
 
     ctx.fillStyle = '#e9edef';
@@ -2766,8 +2843,7 @@
       ctx.fillStyle = '#111b21';
       ctx.strokeStyle = '#2a3942';
       ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(cx, cy, gw, gh, 24);
+      roundRectPath(ctx, cx, cy, gw, gh, 24);
       ctx.fill();
       ctx.stroke();
 
