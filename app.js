@@ -52,6 +52,7 @@
   const againBtn = $('againBtn');
   const anonToggle = $('anonToggle');
   const qualityToggle = $('qualityToggle');
+  const mlLabBtn = $('mlLabBtn');
   const extraNamesInput = $('extraNames');
   const wrappedBtn = $('wrappedBtn');
   const exportBtn = $('exportBtn');
@@ -109,6 +110,19 @@
   const archWrappedBtn = $('archWrappedBtn');
   const archDoneBtn = $('archDoneBtn');
 
+  const mlModal = $('mlModal');
+  const mlModalTitle = $('mlModalTitle');
+  const mlModalSub = $('mlModalSub');
+  const mlBody = $('mlBody');
+  const mlCloseBtn = $('mlCloseBtn');
+  const mlDoneBtn = $('mlDoneBtn');
+  const mlTabOverview = $('mlTabOverview');
+  const mlTabTrain = $('mlTabTrain');
+  const mlTabInspect = $('mlTabInspect');
+  const mlExportCsvBtn = $('mlExportCsvBtn');
+  const mlCopyModelBtn = $('mlCopyModelBtn');
+  const mlApplyToggleBtn = $('mlApplyToggleBtn');
+
   const wrappedModal = $('wrappedModal');
   const wrappedBars = $('wrappedBars');
   const wrappedCounter = $('wrappedCounter');
@@ -153,10 +167,19 @@
     '14/05/2024, 23:40 - Alex: what happened?!',
     '14/05/2024, 23:41 - Priya: I accidentally booked the return flight for NEXT YEAR',
     '14/05/2024, 23:41 - Sam: HAHAHA NO WAY 😂😂',
+    '14/05/2024, 23:41 - Sam: haha',
+    '14/05/2024, 23:41 - Sam: lol 😂',
+    '14/05/2024, 23:41 - Sam: lol 😂',
+    '14/05/2024, 23:41 - Sam: wait',
+    '14/05/2024, 23:41 - Sam: bro',
+    '14/05/2024, 23:41 - Sam: no way',
+    '14/05/2024, 23:41 - Sam: 😂😂😂',
     '14/05/2024, 23:41 - Alex: lmao guess you live in Lisbon now 💀',
     '14/05/2024, 23:42 - Priya changed the subject to "Priya Lives In Lisbon Now"',
     '14/05/2024, 23:42 - Sam: wait can you still cancel within 24 hours?',
     '14/05/2024, 23:43 - Priya: omg yes fixed it! crisis averted 😅',
+    '14/05/2024, 23:43 - Sam: ok',
+    '14/05/2024, 23:43 - Sam: 👍',
     '14/05/2024, 23:44 - Alex: legend, never change',
     '10/01/2025, 19:10 - Sam: happy new year team! reunion dinner soon?',
     '10/01/2025, 19:11 - Alex: YES! ramen or tacos this weekend?',
@@ -296,19 +319,66 @@
     }
     if (peekModal && !peekModal.hidden) renderPeekWindow();
     if (archModal && !archModal.hidden) openArchetypeModal();
+    if (mlModal && !mlModal.hidden) renderMlModal();
     if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
     hideTooltip();
   });
 
-  // 🧹 Spam-adjusted counts: re-rank senders by the quality-weighted count
-  // (laugh-spam, acks, duplicates, media all discounted — see quality.js).
+  // 🧹 Spam-adjusted counts: re-rank senders by the ML-weighted substantive count
+  // (laugh-spam, acks, bursts, duplicates, media all handled — see quality.js).
+  function setAdjustedMode(enabled) {
+    if (!current) return;
+    current.adjusted = Boolean(enabled);
+    current.lensIndex = 0;
+    if (qualityToggle) qualityToggle.checked = current.adjusted;
+    if (current.race && current.race.active) stopRace(false);
+    syncMlLabBtn();
+    updateExtrasLine();
+    renderArchetype();
+    renderVibes();
+    buildSenderRows(current.result);
+    renderGroupExtras();
+    updateAnswerBubble(true);
+    if (!wordSection.hidden) renderWords();
+    drawStrip(1);
+    if (peekModal && !peekModal.hidden) renderPeekWindow();
+    if (archModal && !archModal.hidden) openArchetypeModal();
+    if (mlModal && !mlModal.hidden) renderMlModal();
+    if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
+  }
+
+  function syncMlLabBtn() {
+    if (!mlLabBtn) return;
+    const isCustom = Boolean(current && current.customModel);
+    const isOn = Boolean(current && (current.adjusted || isCustom));
+    mlLabBtn.classList.toggle('on', isOn);
+    mlLabBtn.textContent = isCustom ? '🧪 ML Lab · custom' : '🧪 ML Lab';
+  }
+
   if (qualityToggle) {
     qualityToggle.addEventListener('change', () => {
+      setAdjustedMode(qualityToggle.checked);
+    });
+  }
+  if (mlLabBtn) {
+    mlLabBtn.addEventListener('click', () => openMlModal('overview'));
+  }
+  if (mlCloseBtn) mlCloseBtn.addEventListener('click', closeMlModal);
+  if (mlDoneBtn) mlDoneBtn.addEventListener('click', closeMlModal);
+  if (mlModal) {
+    mlModal.addEventListener('click', (e) => {
+      if (e.target === mlModal) closeMlModal();
+    });
+  }
+  if (mlTabOverview) mlTabOverview.addEventListener('click', () => setMlTab('overview'));
+  if (mlTabTrain) mlTabTrain.addEventListener('click', () => setMlTab('train'));
+  if (mlTabInspect) mlTabInspect.addEventListener('click', () => setMlTab('inspect'));
+  if (mlExportCsvBtn) mlExportCsvBtn.addEventListener('click', exportQualityCSV);
+  if (mlCopyModelBtn) mlCopyModelBtn.addEventListener('click', copyQualityModelJSON);
+  if (mlApplyToggleBtn) {
+    mlApplyToggleBtn.addEventListener('click', () => {
       if (!current) return;
-      current.adjusted = qualityToggle.checked;
-      updateExtrasLine();
-      buildSenderRows(current.result);
-      updateAnswerBubble(true);
+      setAdjustedMode(!current.adjusted);
     });
   }
 
@@ -602,7 +672,21 @@
       closeCardMenu();
       if (peekModal && !peekModal.hidden) closePeek();
       if (archModal && !archModal.hidden) closeArchetypeModal();
+      if (mlModal && !mlModal.hidden) closeMlModal();
       if (wrappedModal && !wrappedModal.hidden) closeWrapped();
+    } else if (mlModal && !mlModal.hidden && current && current.mlTab === 'train') {
+      const tag = (e.target && e.target.tagName) || '';
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === '1') {
+        e.preventDefault();
+        labelCurrentAlItem(0);
+      } else if (e.key === '2') {
+        e.preventDefault();
+        labelCurrentAlItem(1);
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault();
+        skipCurrentAlItem();
+      }
     } else if (wrappedModal && !wrappedModal.hidden) {
       if (e.key === 'ArrowRight' || e.key === ' ') {
         e.preventDefault();
@@ -722,6 +806,7 @@
     stopRace(false);
     closePeek();
     closeArchetypeModal();
+    closeMlModal();
     closeWrapped();
     closeCardMenu();
     if (typingStatus) typingStatus.hidden = true;
@@ -776,12 +861,133 @@
     return current.detected;
   }
 
+  function ensureCleanBundle() {
+    if (!current) return null;
+    if (!current.adjusted || !current.quality) {
+      return { result: current.result, insights: current.insights };
+    }
+    if (current.cleanBundle) return current.cleanBundle;
+
+    const origMsgs = current.result.messages || [];
+    const q = current.quality;
+    const cleanMsgs = [];
+    const origIndices = [];
+    const bySender = new Map();
+    let chars = 0;
+
+    for (let i = 0; i < origMsgs.length; i++) {
+      const k = q.kinds[i];
+      const w = q.weights[i];
+      if (k !== 'substantive' || w < 0.5) continue;
+      const m = origMsgs[i];
+      cleanMsgs.push(m);
+      origIndices.push(i);
+      chars += m.text.length;
+      const entry = bySender.get(m.sender) || { sender: m.sender, count: 0, chars: 0 };
+      entry.count++;
+      entry.chars += m.text.length;
+      bySender.set(m.sender, entry);
+    }
+
+    if (!cleanMsgs.length) {
+      current.cleanBundle = { result: current.result, insights: current.insights };
+      return current.cleanBundle;
+    }
+
+    const noteEntries = (current.result.entries || []).filter((e) => e.kind === 'note');
+    const cleanResult = {
+      total: cleanMsgs.length,
+      systemNotes: current.result.systemNotes || 0,
+      media: 0,
+      deleted: 0,
+      edited: cleanMsgs.reduce((n, m) => n + (m.edited ? 1 : 0), 0),
+      chars,
+      first: cleanMsgs[0].ts,
+      last: cleanMsgs[cleanMsgs.length - 1].ts,
+      senders: Array.from(bySender.values()).sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender)),
+      messages: cleanMsgs,
+      entries: cleanMsgs.concat(noteEntries),
+    };
+
+    const cleanInsights = WhatsAppParser.insights
+      ? WhatsAppParser.insights(cleanResult)
+      : current.insights;
+
+    // Remap every message index back to the full chat so Moment Peek & spotlights align.
+    const mapIdx = (ci) => (typeof ci === 'number' && ci >= 0 && ci < origIndices.length ? origIndices[ci] : ci);
+    if (cleanInsights.chaosPeak) {
+      cleanInsights.chaosPeak.startIdx = mapIdx(cleanInsights.chaosPeak.startIdx);
+      cleanInsights.chaosPeak.endIdx = mapIdx(cleanInsights.chaosPeak.endIdx);
+    }
+    if (cleanInsights.peakDayRange) {
+      cleanInsights.peakDayRange.firstIdx = mapIdx(cleanInsights.peakDayRange.firstIdx);
+      cleanInsights.peakDayRange.lastIdx = mapIdx(cleanInsights.peakDayRange.lastIdx);
+    }
+    if (cleanInsights.streakRange) {
+      cleanInsights.streakRange.startIdx = mapIdx(cleanInsights.streakRange.startIdx);
+      cleanInsights.streakRange.endIdx = mapIdx(cleanInsights.streakRange.endIdx);
+    }
+    if (cleanInsights.longestSilence) {
+      cleanInsights.longestSilence.startIdx = mapIdx(cleanInsights.longestSilence.startIdx);
+      cleanInsights.longestSilence.endIdx = mapIdx(cleanInsights.longestSilence.endIdx);
+    }
+    if (cleanInsights.dayList) {
+      for (const d of cleanInsights.dayList) {
+        d.firstIdx = mapIdx(d.firstIdx);
+        d.lastIdx = mapIdx(d.lastIdx);
+      }
+    }
+
+    // Preserve comedian (laughs triggered by jokes) and groupLore (system notes) from raw chat.
+    if (current.insights.comedian && !cleanInsights.comedian) {
+      cleanInsights.comedian = current.insights.comedian;
+      if (cleanInsights.senderStats && current.insights.senderStats) {
+        for (const s of Object.keys(cleanInsights.senderStats)) {
+          const rawSt = current.insights.senderStats[s];
+          if (rawSt && rawSt.laughsTriggered) {
+            cleanInsights.senderStats[s].laughsTriggered = rawSt.laughsTriggered;
+            cleanInsights.senderStats[s].bestPunchlineIdx = rawSt.bestPunchlineIdx;
+          }
+        }
+      }
+      if (cleanInsights.awards && !cleanInsights.awards.some((a) => a.id === 'comedian')) {
+        const cm = current.insights.comedian;
+        cleanInsights.awards.unshift({
+          id: 'comedian', icon: '🎭', title: 'Comedian',
+          sender: cm.sender, detail: '×' + cm.count + ' laughs triggered',
+        });
+        if (cleanInsights.senderStats && cleanInsights.senderStats[cm.sender]) {
+          cleanInsights.senderStats[cm.sender].badges.unshift({
+            id: 'comedian', icon: '🎭', title: 'Comedian', detail: '×' + cm.count + ' laughs triggered',
+          });
+        }
+      }
+    }
+    if (current.insights.groupLore) {
+      cleanInsights.groupLore = current.insights.groupLore;
+    }
+
+    current.cleanBundle = { result: cleanResult, insights: cleanInsights, origIndices };
+    return current.cleanBundle;
+  }
+
+  function activeInsights() {
+    const b = ensureCleanBundle();
+    return b ? b.insights : current.insights;
+  }
+
+  function activeTextResult() {
+    const b = ensureCleanBundle();
+    return b ? b.result : current.result;
+  }
+
   function wordsFor(anon, filterStopWords) {
     const skip = filterStopWords !== false;
-    const key = (anon ? 'anon|' : 'plain|') + (skip ? '1|' : '0|') + readExtraNames().join(',');
+    const modeTag = current.adjusted ? 'clean|' : 'raw|';
+    const key = modeTag + (anon ? 'anon|' : 'plain|') + (skip ? '1|' : '0|') + readExtraNames().join(',');
     if (!current.wordsCache[key]) {
       current.wordsCache[key] = WhatsAppWords.analyze(
-        current.result.messages,
+        activeTextResult().messages,
         Object.assign(
           { filterStopWords: skip },
           anon ? { senderMap: current.map, nameMap: ensureDetected() } : {}
@@ -805,6 +1011,7 @@
         }
         if (peekModal && !peekModal.hidden) renderPeekWindow();
         if (archModal && !archModal.hidden) openArchetypeModal();
+        if (mlModal && !mlModal.hidden) renderMlModal();
         if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
       }
     });
@@ -882,6 +1089,9 @@
     if (!sliced || !sliced.total) return;
 
     const keepAnon = current.anon;
+    const keepAdjusted = current.adjusted;
+    const keepQualityPreset = current.qualityPreset || 'balanced';
+    const keepCustomModel = current.customModel || null;
     const keepWordsOpen = Boolean(wordsToggle && wordsToggle.checked);
     const keepStripMode = current.stripMode || 'timeline';
     render(current.name, current.size, sliced, current.rawText, {
@@ -891,6 +1101,9 @@
       colors: current.colors,
       map: current.map,
       anon: keepAnon,
+      adjusted: keepAdjusted,
+      qualityPreset: keepQualityPreset,
+      customModel: keepCustomModel,
       wordsOpen: keepWordsOpen,
       stripMode: keepStripMode,
       skipScroll: true,
@@ -899,27 +1112,48 @@
 
   /* ---------- extras line under the answer bubble ---------- */
 
+  function formatQualityBits(obj) {
+    const bits = [];
+    if (obj.reactions || obj.reaction) bits.push(`${numberFmt.format(obj.reactions || obj.reaction)} laughs`);
+    if (obj.acks || obj.ack) bits.push(`${numberFmt.format(obj.acks || obj.ack)} acks`);
+    if (obj.burstSpam || obj.burst) bits.push(`${numberFmt.format(obj.burstSpam || obj.burst)} bursts`);
+    if (obj.emojis || obj.emoji) bits.push(`${numberFmt.format(obj.emojis || obj.emoji)} emoji`);
+    if (obj.dupes || obj.duplicate) bits.push(`${numberFmt.format(obj.dupes || obj.duplicate)} dupes`);
+    if (obj.media) bits.push(`${numberFmt.format(obj.media)} media`);
+    if (obj.deleted) bits.push(`${numberFmt.format(obj.deleted)} deleted`);
+    return bits;
+  }
+
+  function formatAdjustedNum(val) {
+    return val >= 10 ? numberFmt.format(Math.round(val)) : (Math.round(val * 10) / 10).toString();
+  }
+
   function updateExtrasLine() {
     if (!current || !extras) return;
-    const { result, insights, quality, adjusted } = current;
+    const { result, quality, adjusted } = current;
+    const insights = activeInsights();
     const parts = [];
     if (result.media) parts.push(`${numberFmt.format(result.media)} media message${result.media === 1 ? '' : 's'}`);
     if (result.deleted) parts.push(`${numberFmt.format(result.deleted)} deleted`);
     if (result.edited) parts.push(`${numberFmt.format(result.edited)} edited`);
     if (result.systemNotes) parts.push(`${numberFmt.format(result.systemNotes)} system note${result.systemNotes === 1 ? '' : 's'} skipped`);
     if (insights.avgChars) parts.push(`avg ${numberFmt.format(insights.avgChars)} chars/msg`);
+
+    extras.textContent = '';
+    if (parts.length) extras.append(parts.join(', '));
+
     if (adjusted && quality) {
-      const c = quality.counts;
-      const bits = [];
-      if (c.reaction) bits.push(`${numberFmt.format(c.reaction)} laughs`);
-      if (c.ack) bits.push(`${numberFmt.format(c.ack)} acks`);
-      if (c.emoji) bits.push(`${numberFmt.format(c.emoji)} emoji-only`);
-      if (c.duplicate) bits.push(`${numberFmt.format(c.duplicate)} dupes`);
-      if (c.media) bits.push(`${numberFmt.format(c.media)} media`);
-      if (c.deleted) bits.push(`${numberFmt.format(c.deleted)} deleted`);
-      parts.push(`🧹 ${numberFmt.format(Math.round(quality.adjusted))} substantive of ${numberFmt.format(quality.total)} (${bits.join(', ')})`);
+      if (parts.length) extras.append(' · ');
+      const bits = formatQualityBits(quality.counts);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'extras-ml-btn';
+      btn.title = 'Click to inspect the ML cleaning pipeline & train on your chat';
+      const detail = bits.length ? ` (${bits.slice(0, 4).join(', ')})` : '';
+      btn.textContent = `🧹 ${quality.signalPct}% signal · ${formatAdjustedNum(quality.adjusted)} of ${numberFmt.format(quality.total)}${detail}`;
+      btn.addEventListener('click', () => openMlModal('overview'));
+      extras.appendChild(btn);
     }
-    extras.textContent = parts.join(', ');
   }
 
   function render(name, size, result, rawText, opts) {
@@ -929,6 +1163,7 @@
     stopRace(false);
     closePeek();
     closeArchetypeModal();
+    closeMlModal();
     closeWrapped();
     closeCardMenu();
 
@@ -940,11 +1175,15 @@
       ? WhatsAppParser.insights(result)
       : { hours: new Array(24).fill(0), weekdays: new Array(7).fill(0), dayList: [], hourSenders: [], totalParsedTs: 0, textChars: result.chars || 0, avgChars: 0, senderStats: {}, awards: [] };
     const timestamps = WhatsAppParser.parseTimestamps ? WhatsAppParser.parseTimestamps(result.messages) : [];
-    // Message-quality pipeline ("spam-adjusted counts"): feature extraction +
-    // logistic scoring + cleaning rules, all client-side. See quality.js.
+    const msArr = timestamps.map((t) => (t && typeof t.ms === 'number' ? t.ms : null));
+    const qualityPreset = opts.qualityPreset || 'balanced';
+    const customModel = opts.customModel || null;
+    // Message-quality ML pipeline: corpus IDF + 18 features + logistic scoring + cleaning rules.
     const quality = (typeof WhatsAppQuality !== 'undefined' && WhatsAppQuality.analyze)
       ? WhatsAppQuality.analyze(result.messages, {
-          ms: timestamps.map((t) => (t && typeof t.ms === 'number' ? t.ms : null)),
+          ms: msArr,
+          model: customModel || undefined,
+          preset: qualityPreset,
         })
       : null;
     const onThisDay = WhatsAppParser.findOnThisDay ? WhatsAppParser.findOnThisDay(result) : { total: 0, years: [] };
@@ -955,6 +1194,7 @@
     }
     const map = opts.map || WhatsAppParser.senderMap(fullResult);
     const anon = Boolean(opts.anon);
+    const adjusted = Boolean(opts.adjusted);
     const stripMode = opts.stripMode || 'timeline';
 
     current = {
@@ -965,8 +1205,20 @@
       size,
       insights,
       timestamps,
+      msArr,
       quality,
-      adjusted: false,
+      cleanBundle: null,
+      adjusted,
+      qualityPreset,
+      customModel,
+      userLabels: new Map(),
+      mlTab: 'overview',
+      alQueue: null,
+      alCursor: 0,
+      inspectFilter: 'borderline',
+      sandboxText: '',
+      sandboxBurst: false,
+      sandboxDup: false,
       onThisDay,
       colors,
       map,
@@ -993,7 +1245,8 @@
     };
 
     anonToggle.checked = anon;
-    if (qualityToggle) qualityToggle.checked = false;
+    if (qualityToggle) qualityToggle.checked = adjusted;
+    syncMlLabBtn();
     wordsToggle.checked = Boolean(opts.wordsOpen);
     wordSection.hidden = !opts.wordsOpen;
     syncAnonUI();
@@ -1054,7 +1307,8 @@
   /* ---------- answer bubble lenses (6 units) + receipts ---------- */
 
   function lensData(index) {
-    const { result, insights } = current;
+    const result = activeTextResult();
+    const insights = activeInsights();
     if (index === 1) {
       const w = wordsFor(current.anon, false);
       return { value: w.totalWords, display: numberFmt.format(w.totalWords), unit: w.totalWords === 1 ? 'word' : 'words', animate: false };
@@ -1079,7 +1333,8 @@
       return { value: display, display, unit: pages >= 1.5 || pages < 0.95 ? 'paperback pages' : 'paperback page', animate: false };
     }
     if (index === 5) {
-      const cm = result.total * 1.15;
+      const countForScroll = current.adjusted && current.quality ? current.quality.adjusted : result.total;
+      const cm = countForScroll * 1.15;
       if (cm < 100) {
         return { value: Math.round(cm), display: numberFmt.format(Math.round(cm)), unit: 'cm scrolled', animate: false };
       }
@@ -1097,7 +1352,7 @@
       const rounded = Math.round(adj);
       return { value: rounded, display: disp, unit: rounded === 1 ? 'substantive message' : 'substantive messages', animate: true };
     }
-    return { value: result.total, display: numberFmt.format(result.total), unit: result.total === 1 ? 'message' : 'messages', animate: true };
+    return { value: current.result.total, display: numberFmt.format(current.result.total), unit: current.result.total === 1 ? 'message' : 'messages', animate: true };
   }
 
   function stopLensAuto() {
@@ -1112,6 +1367,7 @@
       if (!current || lensPaused || document.hidden || resultSection.hidden) return;
       const modalOpen = (peekModal && !peekModal.hidden)
         || (archModal && !archModal.hidden)
+        || (mlModal && !mlModal.hidden)
         || (wrappedModal && !wrappedModal.hidden);
       if (!modalOpen) {
         current.lensIndex = (current.lensIndex + 1) % LENS_COUNT;
@@ -1181,7 +1437,7 @@
 
   function renderArchetype() {
     if (!archetypeBadge || !current) return;
-    const arch = current.insights.archetype;
+    const arch = activeInsights().archetype;
     if (!arch) {
       archetypeBadge.hidden = true;
       return;
@@ -1208,11 +1464,11 @@
 
   function openArchetypeModal() {
     if (!current || !archModal || !archBody) return;
-    const arch = current.insights.archetype;
+    const arch = activeInsights().archetype;
     if (!arch) return;
 
     if (archModalTitle) archModalTitle.textContent = `${arch.icon} ${arch.title}`;
-    if (archModalSub) archModalSub.textContent = 'Why your chat earned this archetype';
+    if (archModalSub) archModalSub.textContent = current.adjusted ? 'Why your spam-adjusted chat earned this archetype' : 'Why your chat earned this archetype';
 
     archBody.textContent = '';
 
@@ -1328,10 +1584,896 @@
     if (archModal) archModal.hidden = true;
   }
 
+  /* ---------- ML Cleaning Pipeline Lab (Overview, Active Learning, Live Inspector) ---------- */
+
+  const ML_KIND_COLORS = {
+    substantive: '#00a884',
+    reaction: '#f0b429',
+    ack: '#53bdeb',
+    burst: '#e56399',
+    emoji: '#a78bfa',
+    duplicate: '#f47c48',
+    media: '#4b5c66',
+  };
+
+  function activeQualityModel() {
+    if (!current || typeof WhatsAppQuality === 'undefined') return null;
+    if (current.customModel) return current.customModel;
+    return (WhatsAppQuality.PRESETS && WhatsAppQuality.PRESETS[current.qualityPreset]) || WhatsAppQuality.MODEL;
+  }
+
+  function recomputeQuality(opts) {
+    if (!current || typeof WhatsAppQuality === 'undefined' || !WhatsAppQuality.analyze) return;
+    opts = opts || {};
+    const corpus = current.quality && current.quality._corpus ? current.quality._corpus : undefined;
+    current.quality = WhatsAppQuality.analyze(current.result.messages, {
+      ms: current.msArr,
+      model: current.customModel || undefined,
+      preset: current.qualityPreset || 'balanced',
+      corpus,
+    });
+    current.cleanBundle = null;
+    current.wordsCache = {};
+    if (!opts.keepQueue) {
+      current.alQueue = null;
+      current.alCursor = 0;
+    }
+    syncMlLabBtn();
+    updateExtrasLine();
+    renderArchetype();
+    renderVibes();
+    buildSenderRows(current.result);
+    renderGroupExtras();
+    updateAnswerBubble(false, false);
+    if (!wordSection.hidden) renderWords();
+    drawStrip(1);
+    if (peekModal && !peekModal.hidden) renderPeekWindow();
+    if (archModal && !archModal.hidden) openArchetypeModal();
+    if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
+  }
+
+  function ensureAlQueue() {
+    if (!current || !current.quality || !WhatsAppQuality.sampleUncertain) return [];
+    if (!current.alQueue || current.alCursor >= current.alQueue.length) {
+      current.alQueue = WhatsAppQuality.sampleUncertain(current.result.messages, current.quality, {
+        limit: 30,
+        exclude: new Set(current.userLabels.keys()),
+      });
+      current.alCursor = 0;
+    }
+    return current.alQueue;
+  }
+
+  function labelCurrentAlItem(y) {
+    if (!current) return;
+    const q = ensureAlQueue();
+    const item = q[current.alCursor];
+    if (!item) return;
+    current.userLabels.set(item.idx, y);
+    current.alCursor++;
+    // Auto-retrain smoothly once user has at least 4 labels, or update queue view.
+    if (current.userLabels.size >= 4) {
+      runInBrowserTraining(true);
+    } else {
+      renderMlModal();
+    }
+  }
+
+  function skipCurrentAlItem() {
+    if (!current) return;
+    const q = ensureAlQueue();
+    if (current.alCursor < q.length) {
+      current.alCursor++;
+      renderMlModal();
+    }
+  }
+
+  function runInBrowserTraining(keepQueue) {
+    if (!current || typeof WhatsAppQuality === 'undefined' || !WhatsAppQuality.train) return;
+    const res = WhatsAppQuality.train(current.result.messages, current.userLabels, {
+      ms: current.msArr,
+      preset: current.qualityPreset || 'balanced',
+      corpus: current.quality && current.quality._corpus ? current.quality._corpus : undefined,
+    });
+    current.customModel = res.model;
+    if (!current.adjusted) {
+      current.adjusted = true;
+      if (qualityToggle) qualityToggle.checked = true;
+    }
+    recomputeQuality({ keepQueue: Boolean(keepQueue) });
+    if (mlModal && !mlModal.hidden) renderMlModal();
+  }
+
+  function openMlModal(tab) {
+    if (!current || !mlModal || !current.quality) return;
+    current.mlTab = tab || current.mlTab || 'overview';
+    renderMlModal();
+    mlModal.hidden = false;
+    if (mlCloseBtn) mlCloseBtn.focus();
+  }
+
+  function closeMlModal() {
+    if (mlModal) mlModal.hidden = true;
+  }
+
+  function setMlTab(tab) {
+    if (!current) return;
+    current.mlTab = tab;
+    if (mlBody) mlBody.scrollTop = 0;
+    renderMlModal();
+  }
+
+  function syncMlTabButtons() {
+    const map = [
+      [mlTabOverview, 'overview'],
+      [mlTabTrain, 'train'],
+      [mlTabInspect, 'inspect'],
+    ];
+    for (const [btn, id] of map) {
+      if (!btn) continue;
+      const active = current && current.mlTab === id;
+      btn.classList.toggle('active', active);
+      btn.setAttribute('aria-selected', String(active));
+    }
+  }
+
+  function renderMlModal() {
+    if (!current || !current.quality || !mlBody) return;
+    const q = current.quality;
+    syncMlTabButtons();
+
+    if (mlModalTitle) mlModalTitle.textContent = '🧪 ML cleaning pipeline';
+    if (mlModalSub) {
+      const vocab = q.corpus ? numberFmt.format(q.corpus.vocabSize) : '0';
+      mlModalSub.textContent = `${q.model.label} · ${numberFmt.format(q.total)} msgs · ${vocab} vocab IDF · 100% on-device`;
+    }
+    if (mlApplyToggleBtn) {
+      mlApplyToggleBtn.textContent = current.adjusted ? '✓ Spam-adjusted ON' : 'Enable spam-adjusted';
+      mlApplyToggleBtn.classList.toggle('accent-pill', !current.adjusted);
+    }
+
+    mlBody.textContent = '';
+    if (current.mlTab === 'train') {
+      renderMlTrain(mlBody);
+    } else if (current.mlTab === 'inspect') {
+      renderMlInspect(mlBody);
+    } else {
+      renderMlOverview(mlBody);
+    }
+  }
+
+  function renderMlOverview(container) {
+    const q = current.quality;
+
+    // 1. Verdict callout (highlights leaderboard rank flip if one occurred!)
+    const verdict = document.createElement('div');
+    verdict.className = 'ml-verdict' + (q.leaderFlipped ? ' flip' : '');
+    const vText = document.createElement('div');
+    vText.className = 'ml-verdict-text';
+    const vStrong = document.createElement('strong');
+    const vSpan = document.createElement('span');
+
+    if (q.leaderFlipped && q.rawLeader && q.adjLeader) {
+      const rawLeadS = q.senders.find((s) => s.sender === q.rawLeader);
+      const adjLeadS = q.senders.find((s) => s.sender === q.adjLeader);
+      vStrong.textContent = `Rank flip: ${labelFor(q.adjLeader)} takes #1 after cleaning`;
+      vSpan.textContent = `${labelFor(q.rawLeader)} led raw counts (${rawLeadS ? rawLeadS.signalPct : 0}% signal), while ${labelFor(q.adjLeader)} sent more substantive messages (${adjLeadS ? adjLeadS.signalPct : 0}% signal).`;
+    } else if (q.cleanestSender && q.spammiestSender && q.cleanestSender.sender !== q.spammiestSender.sender) {
+      vStrong.textContent = `${formatAdjustedNum(q.adjusted)} substantive messages out of ${numberFmt.format(q.total)} raw`;
+      vSpan.textContent = `Cleanest signal: ${labelFor(q.cleanestSender.sender)} (${q.cleanestSender.signalPct}%). Most filtered filler: ${labelFor(q.spammiestSender.sender)} (${100 - q.spammiestSender.signalPct}% discounted).`;
+    } else {
+      vStrong.textContent = `${formatAdjustedNum(q.adjusted)} substantive messages out of ${numberFmt.format(q.total)} raw`;
+      const bits = formatQualityBits(q.counts);
+      vSpan.textContent = bits.length ? `Filtered breakdown: ${bits.join(', ')}.` : 'Almost every message in this chat looks substantive.';
+    }
+    vText.append(vStrong, vSpan);
+
+    const vKpi = document.createElement('div');
+    vKpi.className = 'ml-verdict-kpi';
+    const kStrong = document.createElement('strong');
+    kStrong.textContent = `${q.signalPct}%`;
+    const kLbl = document.createElement('span');
+    kLbl.textContent = 'chat signal';
+    vKpi.append(kStrong, kLbl);
+    verdict.append(vText, vKpi);
+    container.appendChild(verdict);
+
+    // 2. Model preset selector
+    const presetSec = document.createElement('div');
+    const pHead = document.createElement('div');
+    pHead.className = 'ml-section-head';
+    const pTitle = document.createElement('h4');
+    pTitle.className = 'ml-section-title';
+    pTitle.textContent = 'Scoring profile';
+    const pSub = document.createElement('span');
+    pSub.className = 'ml-section-sub';
+    pSub.textContent = current.customModel ? `Using ${current.customModel.label}` : 'Pick a preset or train your own';
+    pHead.append(pTitle, pSub);
+
+    const pRow = document.createElement('div');
+    pRow.className = 'ml-presets';
+    const presetList = Object.values(WhatsAppQuality.PRESETS || {});
+    for (const pr of presetList) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isAct = !current.customModel && current.qualityPreset === pr.name;
+      btn.className = 'ml-preset-btn' + (isAct ? ' active' : '');
+      const st = document.createElement('strong');
+      st.textContent = pr.label;
+      const sp = document.createElement('span');
+      sp.textContent = pr.description;
+      btn.append(st, sp);
+      btn.addEventListener('click', () => {
+        current.qualityPreset = pr.name;
+        current.customModel = null;
+        if (!current.adjusted) {
+          current.adjusted = true;
+          if (qualityToggle) qualityToggle.checked = true;
+        }
+        recomputeQuality();
+        renderMlModal();
+      });
+      pRow.appendChild(btn);
+    }
+    presetSec.append(pHead, pRow);
+    container.appendChild(presetSec);
+
+    // 3. Per-sender signal vs spam stacked breakdown
+    const senderSec = document.createElement('div');
+    const sHead = document.createElement('div');
+    sHead.className = 'ml-section-head';
+    const sTitle = document.createElement('h4');
+    sTitle.className = 'ml-section-title';
+    sTitle.textContent = 'Before vs. after by sender';
+    const sSub = document.createElement('span');
+    sSub.className = 'ml-section-sub';
+    sSub.textContent = 'Ranked by substantive weight';
+    sHead.append(sTitle, sSub);
+
+    const legend = document.createElement('div');
+    legend.className = 'ml-legend';
+    const legendItems = [
+      ['substantive', 'Substantive'],
+      ['reaction', 'Laughs'],
+      ['ack', 'Acks'],
+      ['burst', 'Burst spam'],
+      ['emoji', 'Emoji-only'],
+      ['duplicate', 'Dupes'],
+      ['media', 'Media/del'],
+    ];
+    for (const [key, lbl] of legendItems) {
+      const it = document.createElement('span');
+      it.className = 'ml-legend-item';
+      const dot = document.createElement('span');
+      dot.className = 'ml-legend-dot';
+      dot.style.background = ML_KIND_COLORS[key];
+      it.append(dot, lbl);
+      legend.appendChild(it);
+    }
+
+    const ul = document.createElement('ul');
+    ul.className = 'ml-sender-list';
+    for (const s of q.senders.slice(0, 10)) {
+      const li = document.createElement('li');
+      li.className = 'ml-sender-row';
+
+      const top = document.createElement('div');
+      top.className = 'ml-sender-top';
+      const nm = document.createElement('span');
+      nm.className = 'ml-sender-name';
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.style.background = current.colors.get(s.sender) || '#00a884';
+      nm.append(chip, `#${s.adjRank} ${labelFor(s.sender)}`);
+      if (s.rankDelta !== 0) {
+        const rd = document.createElement('span');
+        rd.className = 'rank-delta ' + (s.rankDelta > 0 ? 'up' : 'down');
+        rd.textContent = (s.rankDelta > 0 ? '▲' : '▼') + Math.abs(s.rankDelta);
+        nm.appendChild(rd);
+      }
+
+      const nums = document.createElement('span');
+      nums.className = 'ml-sender-nums';
+      const stNum = document.createElement('strong');
+      stNum.textContent = formatAdjustedNum(s.adjusted);
+      nums.append(stNum, ` / ${numberFmt.format(s.raw)} raw · ${s.signalPct}% signal`);
+      top.append(nm, nums);
+
+      const stack = document.createElement('div');
+      stack.className = 'ml-stack';
+      const segs = [
+        ['substantive', s.substantive],
+        ['reaction', s.reactions],
+        ['ack', s.acks],
+        ['burst', s.burstSpam],
+        ['emoji', s.emojis],
+        ['duplicate', s.dupes],
+        ['media', s.media + s.deleted],
+      ];
+      const denom = Math.max(1, s.raw);
+      for (const [k, cnt] of segs) {
+        if (!cnt) continue;
+        const bar = document.createElement('i');
+        bar.style.width = ((cnt / denom) * 100).toFixed(2) + '%';
+        bar.style.background = ML_KIND_COLORS[k];
+        bar.title = `${k}: ${numberFmt.format(cnt)} (${Math.round((cnt / denom) * 100)}%)`;
+        stack.appendChild(bar);
+      }
+
+      const detail = document.createElement('div');
+      detail.className = 'ml-sender-detail';
+      const bits = formatQualityBits(s);
+      detail.textContent = bits.length ? `Filtered: ${bits.join(' · ')}` : 'Clean record — almost no spam detected';
+
+      li.append(top, stack, detail);
+      ul.appendChild(li);
+    }
+    senderSec.append(sHead, legend, ul);
+    container.appendChild(senderSec);
+
+    // 4. Score distribution histogram (10 bins from 0.0 to 1.0)
+    if (q.histogram && q.histogram.length === 10) {
+      const hWrap = document.createElement('div');
+      hWrap.className = 'ml-hist-wrap';
+      const hHead = document.createElement('div');
+      hHead.className = 'ml-section-head';
+      const hTitle = document.createElement('h4');
+      hTitle.className = 'ml-section-title';
+      hTitle.textContent = 'Predicted score distribution P(substantive | x)';
+      const hSub = document.createElement('span');
+      hSub.className = 'ml-section-sub';
+      hSub.textContent = 'Left = filler · Right = substantive';
+      hHead.append(hTitle, hSub);
+
+      const hist = document.createElement('div');
+      hist.className = 'ml-hist';
+      const maxBin = Math.max(1, ...q.histogram);
+      q.histogram.forEach((cnt, idx) => {
+        const col = document.createElement('div');
+        col.className = 'ml-hist-col';
+        const bar = document.createElement('span');
+        bar.className = 'ml-hist-bar';
+        bar.style.height = Math.max(5, Math.round((cnt / maxBin) * 100)) + '%';
+        bar.style.background = idx < 3 ? '#e56399' : idx < 6 ? '#f0b429' : '#00a884';
+        bar.title = `${(idx / 10).toFixed(1)}–${((idx + 1) / 10).toFixed(1)}: ${numberFmt.format(cnt)} msgs`;
+        col.appendChild(bar);
+        hist.appendChild(col);
+      });
+
+      const axis = document.createElement('div');
+      axis.className = 'ml-hist-axis';
+      axis.innerHTML = '<span>0.0 (spam)</span><span>0.5 (borderline)</span><span>1.0 (substantive)</span>';
+      hWrap.append(hHead, hist, axis);
+      container.appendChild(hWrap);
+    }
+  }
+
+  function renderMlTrain(container) {
+    const q = current.quality;
+    const queue = ensureAlQueue();
+    const item = queue[current.alCursor] || null;
+
+    // 1. Active Learning labeling box
+    const alBox = document.createElement('div');
+    alBox.className = 'ml-al-box';
+
+    const alHead = document.createElement('div');
+    alHead.className = 'ml-section-head';
+    const alTitle = document.createElement('h4');
+    alTitle.className = 'ml-section-title';
+    alTitle.textContent = 'Active learning: teach the model your chat';
+    const alSub = document.createElement('span');
+    alSub.className = 'ml-section-sub';
+    alSub.textContent = `${current.userLabels.size} labeled · uncertainty sampling`;
+    alHead.append(alTitle, alSub);
+    alBox.appendChild(alHead);
+
+    if (item) {
+      const m = current.result.messages[item.idx];
+      const bub = document.createElement('div');
+      bub.className = 'ml-al-bubble';
+
+      const meta = document.createElement('div');
+      meta.className = 'ml-al-meta';
+      const senderSp = document.createElement('span');
+      senderSp.className = 'ml-al-sender';
+      senderSp.style.color = current.colors.get(m.sender) || '#00a884';
+      senderSp.textContent = labelFor(m.sender);
+      const tsSp = document.createElement('span');
+      tsSp.textContent = `${m.ts} · #${numberFmt.format(item.idx + 1)}`;
+      meta.append(senderSp, tsSp);
+
+      const txt = document.createElement('p');
+      txt.className = 'ml-al-text';
+      txt.textContent = textFor(m.text);
+
+      const scoreRow = document.createElement('div');
+      scoreRow.className = 'ml-al-score-row';
+      const curW = q.weights[item.idx];
+      const exp = WhatsAppQuality.explain(m, { prevBySender: new Map(), ms: null, corpus: q._corpus }, activeQualityModel());
+      scoreRow.textContent = `Current prediction: ${Math.round(curW * 100)}% substantive (${q.kinds[item.idx]})` +
+        (exp.topReasons.length ? ` · ${exp.topReasons.join(', ')}` : '');
+
+      bub.append(meta, txt, scoreRow);
+      alBox.appendChild(bub);
+
+      const acts = document.createElement('div');
+      acts.className = 'ml-al-actions';
+
+      const btnSpam = document.createElement('button');
+      btnSpam.type = 'button';
+      btnSpam.className = 'pill-action ml-btn-spam';
+      btnSpam.append('✗ Spam / filler');
+      const k1 = document.createElement('span'); k1.className = 'ml-kbd'; k1.textContent = '1';
+      btnSpam.appendChild(k1);
+      btnSpam.addEventListener('click', () => labelCurrentAlItem(0));
+
+      const btnReal = document.createElement('button');
+      btnReal.type = 'button';
+      btnReal.className = 'pill-action ml-btn-real';
+      btnReal.append('✓ Substantive');
+      const k2 = document.createElement('span'); k2.className = 'ml-kbd'; k2.textContent = '2';
+      btnReal.appendChild(k2);
+      btnReal.addEventListener('click', () => labelCurrentAlItem(1));
+
+      const btnSkip = document.createElement('button');
+      btnSkip.type = 'button';
+      btnSkip.className = 'pill-action';
+      btnSkip.append('Skip');
+      const ks = document.createElement('span'); ks.className = 'ml-kbd'; ks.textContent = 'S';
+      btnSkip.appendChild(ks);
+      btnSkip.addEventListener('click', skipCurrentAlItem);
+
+      acts.append(btnSpam, btnReal, btnSkip);
+      alBox.appendChild(acts);
+    } else {
+      const doneP = document.createElement('p');
+      doneP.className = 'ml-section-sub';
+      doneP.style.margin = '0';
+      doneP.textContent = 'You reviewed all sampled borderline messages! Train the model below or reset to start fresh.';
+      alBox.appendChild(doneP);
+    }
+
+    const trainBar = document.createElement('div');
+    trainBar.className = 'ml-train-bar';
+    const statusTxt = document.createElement('span');
+    statusTxt.className = 'ml-section-sub';
+    statusTxt.textContent = current.userLabels.size >= 4
+      ? 'Model auto-retrains with your labels (L2 MAP logistic regression).'
+      : 'Label 4+ borderline messages or run one-click auto-calibration.';
+
+    const tBtns = document.createElement('div');
+    tBtns.className = 'ml-train-btns';
+
+    const trainBtn = document.createElement('button');
+    trainBtn.type = 'button';
+    trainBtn.className = 'pill-action accent-pill';
+    trainBtn.textContent = current.userLabels.size ? `Train on ${current.userLabels.size} labels` : 'Auto-calibrate on chat';
+    trainBtn.addEventListener('click', () => runInBrowserTraining(false));
+
+    tBtns.appendChild(trainBtn);
+    if (current.customModel || current.userLabels.size) {
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.className = 'pill-action';
+      resetBtn.textContent = 'Reset weights';
+      resetBtn.addEventListener('click', () => {
+        current.customModel = null;
+        current.userLabels.clear();
+        recomputeQuality();
+        renderMlModal();
+      });
+      tBtns.appendChild(resetBtn);
+    }
+
+    trainBar.append(statusTxt, tBtns);
+    alBox.appendChild(trainBar);
+    container.appendChild(alBox);
+
+    // 2. Training metrics + SVG Loss Curve (shown once trained)
+    const metrics = q.model && q.model.metrics;
+    if (metrics) {
+      const mGrid = document.createElement('div');
+      mGrid.className = 'ml-metrics-grid';
+      const cards = [
+        [`${Math.round(metrics.accuracy * 100)}%`, 'val accuracy'],
+        [metrics.f1.toFixed(2), 'F1 score'],
+        [metrics.rocAuc != null ? metrics.rocAuc.toFixed(3) : '—', 'ROC-AUC'],
+        [metrics.userAccuracy != null ? `${Math.round(metrics.userAccuracy * 100)}%` : `${metrics.epochs}`, metrics.userAccuracy != null ? `your ${metrics.userCount} labels` : 'GD epochs'],
+      ];
+      for (const [val, lbl] of cards) {
+        const c = document.createElement('div');
+        c.className = 'ml-metric-card';
+        const st = document.createElement('strong'); st.textContent = val;
+        const sp = document.createElement('span'); sp.textContent = lbl;
+        c.append(st, sp);
+        mGrid.appendChild(c);
+      }
+      container.appendChild(mGrid);
+
+      if (metrics.lossHistory && metrics.lossHistory.length >= 2) {
+        const lossBox = document.createElement('div');
+        lossBox.className = 'ml-loss-box';
+        const lHead = document.createElement('div');
+        lHead.className = 'ml-section-head';
+        const lTitle = document.createElement('h4');
+        lTitle.className = 'ml-section-title';
+        lTitle.textContent = 'Training loss curve (regularized cross-entropy)';
+        const lSub = document.createElement('span');
+        lSub.className = 'ml-section-sub';
+        lSub.textContent = `${metrics.initialLoss.toFixed(3)} → ${metrics.finalLoss.toFixed(3)} (${metrics.trainCount} train rows)`;
+        lHead.append(lTitle, lSub);
+
+        const hist = metrics.lossHistory;
+        const maxL = Math.max(...hist, 0.001);
+        const minL = Math.min(...hist, 0);
+        const span = Math.max(0.001, maxL - minL);
+        const W = 400, H = 56, pad = 6;
+        const pts = hist.map((v, i) => {
+          const x = pad + ((W - pad * 2) * i) / (hist.length - 1);
+          const y = H - pad - ((H - pad * 2) * (v - minL)) / span;
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        }).join(' ');
+        const svgNS = 'http://www.w3.org/2000/svg';
+        const svg = document.createElementNS(svgNS, 'svg');
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        svg.setAttribute('class', 'ml-loss-svg');
+        const poly = document.createElementNS(svgNS, 'polyline');
+        poly.setAttribute('fill', 'none');
+        poly.setAttribute('stroke', '#00a884');
+        poly.setAttribute('stroke-width', '2.5');
+        poly.setAttribute('stroke-linecap', 'round');
+        poly.setAttribute('stroke-linejoin', 'round');
+        poly.setAttribute('points', pts);
+        svg.appendChild(poly);
+
+        lossBox.append(lHead, svg);
+        container.appendChild(lossBox);
+      }
+    }
+
+    // 3. Learned Feature Weights diverging bar chart
+    const wWrap = document.createElement('div');
+    wWrap.className = 'ml-weights';
+    const wHead = document.createElement('div');
+    wHead.className = 'ml-section-head';
+    const wTitle = document.createElement('h4');
+    wTitle.className = 'ml-section-title';
+    wTitle.textContent = `Feature weights (bias = ${q.model.bias.toFixed(2)})`;
+    const wSub = document.createElement('span');
+    wSub.className = 'ml-section-sub';
+    wSub.textContent = 'Pink = spam signal · Green = substantive';
+    wHead.append(wTitle, wSub);
+    wWrap.appendChild(wHead);
+
+    const wEntries = Object.keys(q.model.weights)
+      .map((k) => ({ key: k, label: (WhatsAppQuality.FEATURE_META[k] && WhatsAppQuality.FEATURE_META[k].label) || k, val: q.model.weights[k] }))
+      .sort((a, b) => Math.abs(b.val) - Math.abs(a.val));
+    const maxAbs = Math.max(1, ...wEntries.map((e) => Math.abs(e.val)));
+
+    for (const e of wEntries) {
+      const row = document.createElement('div');
+      row.className = 'ml-w-row';
+      const lbl = document.createElement('span');
+      lbl.className = 'ml-w-lbl';
+      lbl.textContent = e.label;
+      lbl.title = e.key;
+
+      const track = document.createElement('span');
+      track.className = 'ml-w-track';
+      const center = document.createElement('i');
+      center.className = 'ml-w-center';
+      const fill = document.createElement('i');
+      fill.className = 'ml-w-fill ' + (e.val >= 0 ? 'pos' : 'neg');
+      fill.style.width = ((Math.abs(e.val) / maxAbs) * 50).toFixed(1) + '%';
+      track.append(center, fill);
+
+      const val = document.createElement('span');
+      val.className = 'ml-w-val';
+      val.textContent = (e.val >= 0 ? '+' : '−') + Math.abs(e.val).toFixed(2);
+      row.append(lbl, track, val);
+      wWrap.appendChild(row);
+    }
+    container.appendChild(wWrap);
+  }
+
+  function renderMlInspect(container) {
+    const q = current.quality;
+    const model = activeQualityModel();
+
+    // 1. Live Message Sandbox + exact log-odds feature waterfall
+    const box = document.createElement('div');
+    box.className = 'ml-sandbox';
+
+    const head = document.createElement('div');
+    head.className = 'ml-section-head';
+    const title = document.createElement('h4');
+    title.className = 'ml-section-title';
+    title.textContent = 'Test any message live';
+    const sub = document.createElement('span');
+    sub.className = 'ml-section-sub';
+    sub.textContent = 'Exact log-odds feature attribution';
+    head.append(title, sub);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'ml-sandbox-input';
+    input.placeholder = 'Try "haha omg 😂" or "wait are we still on for ramen at 7pm?"';
+    input.value = current.sandboxText || 'haha omg 😂';
+
+    const flagsRow = document.createElement('div');
+    flagsRow.className = 'ml-sandbox-flags';
+
+    const makeFlag = (lblText, checked, onChange) => {
+      const lbl = document.createElement('label');
+      lbl.className = 'mini-check';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = checked;
+      cb.addEventListener('change', () => onChange(cb.checked));
+      const sp = document.createElement('span');
+      sp.textContent = lblText;
+      lbl.append(cb, sp);
+      return lbl;
+    };
+
+    const resultRow = document.createElement('div');
+    resultRow.className = 'ml-sandbox-result';
+    const wf = document.createElement('div');
+    wf.className = 'ml-waterfall';
+
+    const updateSandbox = () => {
+      const txt = input.value;
+      current.sandboxText = txt;
+      const prevMap = new Map();
+      const nowMs = 1000000;
+      if (current.sandboxDup) {
+        const norm = txt.toLowerCase().replace(/\s+/g, ' ').trim();
+        prevMap.set('Sandbox', { norm, canon: norm, ms: nowMs - 5000, recent: [{ norm, canon: norm, ms: nowMs - 5000 }] });
+      } else if (current.sandboxBurst) {
+        prevMap.set('Sandbox', { norm: '__prev__', canon: '__prev__', ms: nowMs - 2000, recent: [{ norm: '__prev__', canon: '__prev__', ms: nowMs - 2000 }] });
+      }
+      const ctx = {
+        prevBySender: prevMap,
+        lastSender: current.sandboxBurst ? 'Sandbox' : null,
+        lastMs: current.sandboxBurst ? nowMs - 2000 : null,
+        runLen: current.sandboxBurst ? 3 : 0,
+        shortRunLen: current.sandboxBurst ? 3 : 0,
+        ms: nowMs,
+        corpus: q._corpus,
+      };
+      const exp = WhatsAppQuality.explain({ sender: 'Sandbox', text: txt }, ctx, model);
+
+      resultRow.textContent = '';
+      const left = document.createElement('strong');
+      left.textContent = `Score: ${(exp.score * 100).toFixed(1)}% · ${exp.kind}`;
+      left.style.color = exp.score >= 0.65 ? '#00a884' : exp.score < 0.35 ? '#e56399' : '#f0b429';
+      const right = document.createElement('span');
+      right.className = 'ml-section-sub';
+      right.textContent = Number.isFinite(exp.logit) ? `z = ${exp.logit.toFixed(2)} → σ(z) = ${exp.score.toFixed(3)}` : 'hard rule → 0';
+      resultRow.append(left, right);
+
+      wf.textContent = '';
+      const bRow = document.createElement('div');
+      bRow.className = 'ml-wf-row';
+      const bL = document.createElement('span'); bL.textContent = 'Model intercept (bias)';
+      const bV = document.createElement('span');
+      bV.className = exp.bias >= 0 ? 'pos' : 'neg';
+      bV.textContent = (exp.bias >= 0 ? '+' : '−') + Math.abs(exp.bias).toFixed(2);
+      bRow.append(bL, bV);
+      wf.appendChild(bRow);
+
+      for (const c of exp.contributions.slice(0, 8)) {
+        const r = document.createElement('div');
+        r.className = 'ml-wf-row';
+        const l = document.createElement('span');
+        l.textContent = `${c.label} (x=${c.value})`;
+        const v = document.createElement('span');
+        v.className = c.delta >= 0 ? 'pos' : 'neg';
+        v.textContent = (c.delta >= 0 ? '+' : '−') + Math.abs(c.delta).toFixed(2);
+        r.append(l, v);
+        wf.appendChild(r);
+      }
+    };
+
+    flagsRow.append(
+      makeFlag('4th msg in rapid burst', current.sandboxBurst, (v) => { current.sandboxBurst = v; updateSandbox(); }),
+      makeFlag('Repeated within 2 min', current.sandboxDup, (v) => { current.sandboxDup = v; updateSandbox(); })
+    );
+    input.addEventListener('input', updateSandbox);
+    box.append(head, input, flagsRow, resultRow, wf);
+    container.appendChild(box);
+    updateSandbox();
+
+    // 2. Real Chat Example Auditor (click any message to jump to Moment Peek)
+    const auditSec = document.createElement('div');
+    const aHead = document.createElement('div');
+    aHead.className = 'ml-section-head';
+    const aTitle = document.createElement('h4');
+    aTitle.className = 'ml-section-title';
+    aTitle.textContent = 'Audit real messages from this chat';
+    const aSub = document.createElement('span');
+    aSub.className = 'ml-section-sub';
+    aSub.textContent = 'Click any row to peek in context';
+    aHead.append(aTitle, aSub);
+
+    const filterRow = document.createElement('div');
+    filterRow.className = 'ml-audit-filters';
+    const filters = [
+      ['borderline', 'Borderline'],
+      ['reaction', 'Laughs'],
+      ['ack', 'Acks'],
+      ['burst', 'Burst spam'],
+      ['duplicate', 'Dupes'],
+      ['substantive', 'Top substantive'],
+    ];
+    for (const [id, lbl] of filters) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'pill-btn' + (current.inspectFilter === id ? ' active' : '');
+      btn.textContent = lbl;
+      btn.addEventListener('click', () => {
+        current.inspectFilter = id;
+        renderMlModal();
+      });
+      filterRow.appendChild(btn);
+    }
+
+    const list = document.createElement('ul');
+    list.className = 'ml-audit-list';
+    const msgs = current.result.messages;
+    const picked = [];
+    const stride = msgs.length > 8000 ? Math.floor(msgs.length / 8000) : 1;
+    const seen = new Set();
+
+    for (let i = 0; i < msgs.length; i += stride) {
+      const k = q.kinds[i];
+      const w = q.weights[i];
+      if (k === 'media' || k === 'deleted') continue;
+      if (current.inspectFilter === 'borderline') {
+        if (w < 0.25 || w > 0.75) continue;
+      } else if (current.inspectFilter === 'substantive') {
+        if (k !== 'substantive' || w < 0.85) continue;
+      } else if (k !== current.inspectFilter) {
+        continue;
+      }
+      const norm = msgs[i].text.trim().toLowerCase();
+      if (seen.has(norm)) continue;
+      seen.add(norm);
+      picked.push({ idx: i, w, k });
+      if (picked.length >= 60) break;
+    }
+
+    if (current.inspectFilter === 'borderline') {
+      picked.sort((a, b) => Math.abs(a.w - 0.5) - Math.abs(b.w - 0.5));
+    } else if (current.inspectFilter === 'substantive') {
+      picked.sort((a, b) => b.w - a.w);
+    } else {
+      picked.sort((a, b) => a.w - b.w);
+    }
+
+    if (!picked.length) {
+      const empty = document.createElement('p');
+      empty.className = 'ml-section-sub';
+      empty.textContent = 'No messages in this category for the current filter.';
+      auditSec.append(aHead, filterRow, empty);
+    } else {
+      for (const it of picked.slice(0, 10)) {
+        const m = msgs[it.idx];
+        const li = document.createElement('li');
+        li.className = 'ml-audit-item';
+        const top = document.createElement('div');
+        top.className = 'ml-audit-top';
+        const who = document.createElement('span');
+        who.style.color = current.colors.get(m.sender) || '#00a884';
+        who.style.fontWeight = '600';
+        who.textContent = `${labelFor(m.sender)} · ${m.ts}`;
+        const sc = document.createElement('span');
+        sc.textContent = `${Math.round(it.w * 100)}% (${it.k})`;
+        top.append(who, sc);
+
+        const body = document.createElement('div');
+        body.className = 'ml-audit-body';
+        const t = textFor(m.text).replace(/\s+/g, ' ');
+        body.textContent = t.length > 140 ? t.slice(0, 140) + '…' : t;
+
+        const exp = WhatsAppQuality.explain(m, { prevBySender: new Map(), ms: null, corpus: q._corpus }, model);
+        const reasons = document.createElement('div');
+        reasons.className = 'ml-audit-reasons';
+        reasons.textContent = exp.topReasons.join(' · ');
+
+        li.append(top, body, reasons);
+        li.addEventListener('click', () => {
+          closeMlModal();
+          openPeek(it.idx, `ML audit · ${Math.round(it.w * 100)}% (${it.k})`);
+        });
+        list.appendChild(li);
+      }
+      auditSec.append(aHead, filterRow, list);
+    }
+    container.appendChild(auditSec);
+  }
+
+  function exportQualityCSV() {
+    if (!current || typeof WhatsAppQuality === 'undefined' || !WhatsAppQuality.toCSV) return;
+    const csv = WhatsAppQuality.toCSV(current.result.messages, {
+      ms: current.msArr,
+      model: activeQualityModel(),
+      corpus: current.quality && current.quality._corpus ? current.quality._corpus : undefined,
+      userLabels: current.userLabels,
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const yearTag = current.selectedYear ? '-' + current.selectedYear : '';
+    const base = current.anon ? 'anonymized-chat' : (current.name || 'whatsapp-chat').replace(/\.(txt|zip)$/i, '');
+    triggerDownload(blob, `${base}${yearTag}-ml-features.csv`);
+    if (mlExportCsvBtn) {
+      const prev = mlExportCsvBtn.textContent;
+      mlExportCsvBtn.textContent = 'Downloaded ✓';
+      setTimeout(() => { mlExportCsvBtn.textContent = prev; }, 1600);
+    }
+  }
+
+  async function copyQualityModelJSON() {
+    if (!current || !current.quality) return;
+    const payload = JSON.stringify({
+      name: current.quality.model.name,
+      label: current.quality.model.label,
+      bias: current.quality.model.bias,
+      weights: current.quality.model.weights,
+      metrics: current.quality.model.metrics || undefined,
+    }, null, 2);
+    let ok = false;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(payload);
+        ok = true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = payload;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { ok = document.execCommand('copy'); } catch { ok = false; }
+      ta.remove();
+    }
+    if (mlCopyModelBtn) {
+      const prev = mlCopyModelBtn.textContent;
+      mlCopyModelBtn.textContent = ok ? 'Copied JSON ✓' : 'Copy failed';
+      setTimeout(() => { mlCopyModelBtn.textContent = prev; }, 1600);
+    }
+  }
+
   function renderVibes() {
     if (!vibeList || !current) return;
-    const { insights, onThisDay } = current;
+    const { onThisDay, quality, adjusted } = current;
+    const insights = activeInsights();
     const items = [];
+
+    if (adjusted && quality && current.result.senders.length >= 2) {
+      if (quality.leaderFlipped && quality.adjLeader) {
+        items.push({
+          id: 'qualityFlip',
+          prefix: '🏆 rank flip',
+          value: `${labelFor(quality.adjLeader)} takes #1`,
+          title: 'Open ML Lab to see how cleaning flipped the leaderboard',
+          onClick: () => openMlModal('overview'),
+        });
+      } else if (quality.cleanestSender) {
+        items.push({
+          id: 'qualityClean',
+          prefix: '🧹 cleanest signal',
+          value: `${labelFor(quality.cleanestSender.sender)} (${quality.cleanestSender.signalPct}%)`,
+          title: 'Open ML Lab to inspect per-sender signal vs spam',
+          onClick: () => openMlModal('overview'),
+        });
+      }
+    }
 
     if (onThisDay && onThisDay.total > 0 && onThisDay.years.length) {
       const latest = onThisDay.years[0];
@@ -1489,7 +2631,7 @@
 
     vibeList.textContent = '';
     vibeList.hidden = items.length === 0;
-    for (const item of items.slice(0, 7)) {
+    for (const item of items.slice(0, adjusted ? 8 : 7)) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'vibe-chip';
@@ -1577,28 +2719,58 @@
       const count = document.createElement('span');
       count.className = 'count';
       if (s.qs) {
-        // 🧹 spam-adjusted mode: show the weighted count, raw + breakdown on hover
-        const c = s.count;
-        count.textContent = c >= 10 ? numberFmt.format(Math.round(c)) : (Math.round(c * 10) / 10).toString();
-        const bits = [`${numberFmt.format(s.qs.raw)} raw`];
-        if (s.qs.reactions) bits.push(`${numberFmt.format(s.qs.reactions)} laughs`);
-        if (s.qs.acks) bits.push(`${numberFmt.format(s.qs.acks)} acks`);
-        if (s.qs.emojis) bits.push(`${numberFmt.format(s.qs.emojis)} emoji-only`);
-        if (s.qs.dupes) bits.push(`${numberFmt.format(s.qs.dupes)} dupes`);
-        if (s.qs.media) bits.push(`${numberFmt.format(s.qs.media)} media`);
-        if (s.qs.deleted) bits.push(`${numberFmt.format(s.qs.deleted)} deleted`);
+        // 🧹 spam-adjusted mode: show weighted count + signal % + rank-delta badge
+        const wrap = document.createElement('span');
+        wrap.className = 'count-wrap';
+
+        if (s.qs.rankDelta !== 0) {
+          const delta = document.createElement('span');
+          delta.className = 'rank-delta ' + (s.qs.rankDelta > 0 ? 'up' : 'down');
+          delta.textContent = (s.qs.rankDelta > 0 ? '▲' : '▼') + Math.abs(s.qs.rankDelta);
+          delta.title = `Raw rank #${s.qs.rawRank} → Adjusted rank #${s.qs.adjRank}`;
+          wrap.appendChild(delta);
+        }
+
+        const sig = document.createElement('span');
+        sig.className = 'signal-tag';
+        sig.textContent = `${s.qs.signalPct}%`;
+        sig.title = `${s.qs.signalPct}% substantive signal (${formatAdjustedNum(s.qs.adjusted)} of ${numberFmt.format(s.qs.raw)} raw)`;
+        wrap.appendChild(sig);
+
+        const numEl = document.createElement('span');
+        numEl.textContent = formatAdjustedNum(s.count);
+        wrap.appendChild(numEl);
+
+        count.appendChild(wrap);
+        const bits = [`${numberFmt.format(s.qs.raw)} raw`, `${s.qs.signalPct}% signal`].concat(formatQualityBits(s.qs));
         count.title = '🧹 ' + bits.join(' · ');
       } else {
-        count.textContent = numberFmt.format(s.count);
+        count.textContent = raceFrame && current.adjusted ? formatAdjustedNum(s.count) : numberFmt.format(s.count);
       }
 
       const bar = document.createElement('span');
       bar.className = 'bar';
-      const fill = document.createElement('i');
-      const pct = raceFrame ? (s.count / totalForBar) * 100 : (s.count / totalForBar) * 100;
-      fill.style.width = pct.toFixed(2) + '%';
-      fill.style.background = current.colors.get(s.sender);
-      bar.appendChild(fill);
+      const color = current.colors.get(s.sender);
+      if (s.qs) {
+        // Ghost bar shows raw share behind the solid substantive bar.
+        const rawFill = document.createElement('i');
+        rawFill.className = 'bar-raw';
+        rawFill.style.width = ((s.raw / Math.max(1, result.total)) * 100).toFixed(2) + '%';
+        rawFill.style.background = color;
+        bar.appendChild(rawFill);
+
+        const fill = document.createElement('i');
+        fill.className = 'bar-adj';
+        fill.style.width = ((s.count / totalForBar) * 100).toFixed(2) + '%';
+        fill.style.background = color;
+        bar.appendChild(fill);
+      } else {
+        const fill = document.createElement('i');
+        const pct = (s.count / totalForBar) * 100;
+        fill.style.width = pct.toFixed(2) + '%';
+        fill.style.background = color;
+        bar.appendChild(fill);
+      }
 
       li.append(chip, nameEl, count, bar);
 
@@ -1626,7 +2798,8 @@
   function buildDossierEl(sender) {
     const box = document.createElement('div');
     box.className = 'dossier';
-    const st = (current.insights.senderStats && current.insights.senderStats[sender]) || null;
+    const ins = activeInsights();
+    const st = (ins.senderStats && ins.senderStats[sender]) || null;
     const w = wordsFor(current.anon, true);
     const ws = w.senders.find((x) => x.sender === sender) || null;
 
@@ -1674,18 +2847,17 @@
       grid.appendChild(cell);
     };
 
-    if (current.adjusted && current.quality) {
+    if (current.quality) {
       const qs = current.quality.senders.find((x) => x.sender === sender);
       if (qs) {
-        const adj = qs.adjusted >= 10 ? numberFmt.format(Math.round(qs.adjusted)) : qs.adjusted.toFixed(1);
-        const bits = [];
-        if (qs.reactions) bits.push(`${qs.reactions} laughs`);
-        if (qs.acks) bits.push(`${qs.acks} acks`);
-        if (qs.emojis) bits.push(`${qs.emojis} emoji`);
-        if (qs.dupes) bits.push(`${qs.dupes} dupes`);
-        if (qs.media) bits.push(`${qs.media} media`);
-        if (qs.deleted) bits.push(`${qs.deleted} deleted`);
-        addStat(`${adj} / ${numberFmt.format(qs.raw)}`, bits.length ? `substantive / raw 🧹 (${bits.join(', ')})` : 'substantive / raw 🧹');
+        const adj = formatAdjustedNum(qs.adjusted);
+        const bits = formatQualityBits(qs);
+        const rankNote = qs.rankDelta > 0 ? ` · ▲${qs.rankDelta}` : qs.rankDelta < 0 ? ` · ▼${Math.abs(qs.rankDelta)}` : '';
+        addStat(
+          `${qs.signalPct}% (${adj} / ${numberFmt.format(qs.raw)})`,
+          bits.length ? `signal 🧹${rankNote} (${bits.slice(0, 3).join(', ')})` : `signal 🧹${rankNote}`,
+          () => openMlModal('overview')
+        );
       }
     }
 
@@ -1745,7 +2917,8 @@
 
   function renderGroupExtras() {
     if (!groupExtras || !current) return;
-    const { result, insights } = current;
+    const { result } = current;
+    const insights = activeInsights();
     let shownAny = false;
 
     // 1. Ping-Pong: Who talks to whom (for 3+ person group chats)
@@ -1838,6 +3011,8 @@
   function buildRaceFrames() {
     const msgs = current.result.messages;
     const n = msgs.length;
+    const useWeights = Boolean(current.adjusted && current.quality && current.quality.weights);
+    const qWeights = useWeights ? current.quality.weights : null;
     const targetFrames = Math.min(n, 60);
     const step = n / targetFrames;
     const counts = new Map();
@@ -1846,7 +3021,8 @@
 
     for (let i = 0; i < n; i++) {
       const s = msgs[i].sender;
-      counts.set(s, (counts.get(s) || 0) + 1);
+      const inc = qWeights ? (qWeights[i] || 0) : 1;
+      counts.set(s, (counts.get(s) || 0) + inc);
       if (i + 1 >= Math.round((nextCut + 1) * step) || i === n - 1) {
         frames.push({
           idx: i,
@@ -2788,18 +3964,32 @@
 
     current.stripLayout = { mode: 'timeline', buckets, slot, bucketSize, n };
 
+    const useQ = Boolean(current.adjusted && current.quality && current.quality.weights);
+    const qW = useQ ? current.quality.weights : null;
+
     for (let b = 0; b < visible; b++) {
       const start = b * bucketSize;
       const end = Math.min(start + bucketSize, n);
       let best = null;
+      let bestIdx = start;
+      let bestScore = -1;
       for (let j = start; j < end; j++) {
         const m = msgs[j];
         if (hasFilter && !msgMatchesFilters(j, m)) continue;
-        if (!best || m.text.length > best.text.length) best = m;
+        const sc = useQ ? (m.text.length * (0.15 + (qW[j] || 0))) : m.text.length;
+        if (!best || sc > bestScore) {
+          best = m;
+          bestIdx = j;
+          bestScore = sc;
+        }
       }
       const dimmed = hasFilter && !best;
-      if (!best) best = msgs[start];
-      const h = minH + (cssH - minH - 4) * (Math.log(1 + best.text.length) / maxLog);
+      if (!best) {
+        best = msgs[start];
+        bestIdx = start;
+      }
+      const qw = useQ ? (qW[bestIdx] || 0) : 1;
+      const h = minH + (cssH - minH - 4) * (Math.log(1 + best.text.length) / maxLog) * (useQ ? (0.35 + 0.65 * qw) : 1);
       const x = b * slot + gap / 2;
 
       if (hoverIndex === b) {
@@ -2807,7 +3997,7 @@
         ctx.fillRect(b * slot, 0, Math.max(1, slot), cssH);
       }
 
-      ctx.globalAlpha = dimmed ? 0.12 : 1;
+      ctx.globalAlpha = dimmed ? 0.12 : (useQ ? (0.2 + 0.8 * qw) : 1);
       ctx.fillStyle = colors.get(best.sender) || '#8696a0';
       if (tickW >= 3) {
         ctx.beginPath();
@@ -2821,7 +4011,8 @@
   }
 
   function drawClockStrip(ctx, cssW, cssH, progress) {
-    const { insights, result, colors, highlightSender, hoverIndex } = current;
+    const { result, colors, highlightSender, hoverIndex } = current;
+    const insights = activeInsights();
     const hours = insights.hours || new Array(24).fill(0);
     const maxHour = Math.max(1, ...hours);
     const labelH = 14;
@@ -2889,7 +4080,8 @@
   }
 
   function drawCalendarStrip(ctx, cssW, cssH, progress) {
-    const { insights, colors, highlightSender, hoverIndex } = current;
+    const { colors, highlightSender, hoverIndex } = current;
+    const insights = activeInsights();
     const dayList = insights.dayList || [];
     if (!dayList.length) {
       ctx.fillStyle = '#8696a0';
@@ -3154,12 +4346,13 @@
         current.hoverIndex = h;
         drawStrip(1);
       }
-      const count = current.insights.hours[h] || 0;
-      const total = current.insights.totalParsedTs || current.result.total || 1;
+      const ins = activeInsights();
+      const count = ins.hours[h] || 0;
+      const total = ins.totalParsedTs || activeTextResult().total || 1;
       const pct = Math.round((count / total) * 100);
       let topSender = null;
       let topCount = 0;
-      const hs = current.insights.hourSenders && current.insights.hourSenders[h];
+      const hs = ins.hourSenders && ins.hourSenders[h];
       if (hs) {
         for (const [s, c] of hs) {
           if (c > topCount) { topCount = c; topSender = s; }
@@ -3386,7 +4579,25 @@
     tsEl.className = 'peek-ts';
     tsEl.textContent = m.ts;
 
-    row.append(senderEl, textEl, tsEl);
+    if (current.adjusted && current.quality && typeof current.quality.weights[i] === 'number') {
+      const metaRow = document.createElement('div');
+      metaRow.className = 'peek-meta-row';
+      const wVal = current.quality.weights[i];
+      const kind = current.quality.kinds[i] || 'substantive';
+      const qPill = document.createElement('span');
+      qPill.className = 'peek-quality ' + (wVal >= 0.65 ? 'high' : wVal < 0.35 ? 'low' : '');
+      qPill.textContent = kind === 'substantive' ? `signal ${Math.round(wVal * 100)}%` : `${kind} · ${Math.round(wVal * 100)}%`;
+      if (WhatsAppQuality && WhatsAppQuality.explain) {
+        const exp = WhatsAppQuality.explain(m, { prevBySender: new Map(), ms: null, corpus: current.quality._corpus }, activeQualityModel());
+        if (exp.topReasons && exp.topReasons.length) {
+          qPill.title = 'ML score ' + wVal.toFixed(2) + ' · ' + exp.topReasons.join(', ');
+        }
+      }
+      metaRow.append(qPill, tsEl);
+      row.append(senderEl, textEl, metaRow);
+    } else {
+      row.append(senderEl, textEl, tsEl);
+    }
     return row;
   }
 
@@ -3799,7 +5010,8 @@
   function renderWrappedSlide() {
     if (!current || !wrappedSlide) return;
     const idx = current.wrappedIndex;
-    const { result, insights } = current;
+    const { result } = current;
+    const insights = activeInsights();
     const w = wordsFor(current.anon, true);
     const wAll = wordsFor(current.anon, false);
     const books = WhatsAppWords.bookReport(wAll.uniqueWords);
@@ -3855,24 +5067,28 @@
       bub.className = 'w-bubble';
       const num = document.createElement('span');
       num.className = 'w-bubble-num';
-      num.textContent = numberFmt.format(result.total);
+      const isAdj = Boolean(current.adjusted && current.quality);
+      const heroCount = isAdj ? current.quality.adjusted : result.total;
+      num.textContent = isAdj ? formatAdjustedNum(heroCount) : numberFmt.format(result.total);
       const unit = document.createElement('span');
       unit.className = 'w-bubble-unit';
-      unit.textContent = result.total === 1 ? 'message exchanged' : 'messages exchanged';
+      unit.textContent = isAdj
+        ? `substantive messages (${current.quality.signalPct}% of ${numberFmt.format(result.total)} raw)`
+        : (result.total === 1 ? 'message exchanged' : 'messages exchanged');
       bub.append(num, unit);
       wrappedSlide.appendChild(bub);
 
       const grid = document.createElement('div');
       grid.className = 'w-grid';
       const pages = wAll.totalWords / 250;
-      const mins = Math.max(1, Math.round((insights.textChars || result.chars) / 200));
+      const mins = Math.max(1, Math.round((insights.textChars || activeTextResult().chars) / 200));
       const typingVal = mins >= 60 ? `${(mins / 60).toFixed(1)} hrs` : `${numberFmt.format(mins)} mins`;
-      const scrollM = (result.total * 1.15) / 100;
+      const scrollM = (heroCount * 1.15) / 100;
       const cards = [
         [numberFmt.format(wAll.totalWords), 'words written'],
         [pages >= 10 ? numberFmt.format(Math.round(pages)) : Math.max(0.1, pages).toFixed(1), 'paperback pages'],
         [typingVal, 'estimated typing'],
-        [scrollM >= 1 ? `${scrollM >= 100 ? numberFmt.format(Math.round(scrollM)) : scrollM.toFixed(1)} m` : `${Math.round(result.total * 1.15)} cm`, 'thumb scroll distance'],
+        [scrollM >= 1 ? `${scrollM >= 100 ? numberFmt.format(Math.round(scrollM)) : scrollM.toFixed(1)} m` : `${Math.round(heroCount * 1.15)} cm`, 'thumb scroll distance'],
       ];
       for (const [v, l] of cards) {
         const c = document.createElement('div');
@@ -3940,15 +5156,20 @@
       wrappedSlide.appendChild(grid);
     } else if (idx === 2) {
       // Slide 3: Cast & Dynamics (+ Power Duo)
-      addKicker('the cast');
-      const leader = result.senders[0];
-      const leadPct = leader ? Math.round((leader.count / result.total) * 100) : 0;
+      const isAdj = Boolean(current.adjusted && current.quality);
+      addKicker(isAdj ? 'the cast · 🧹 spam-adjusted' : 'the cast');
+      const castList = isAdj
+        ? current.quality.senders.map((s) => ({ sender: s.sender, count: s.adjusted, signalPct: s.signalPct, rankDelta: s.rankDelta }))
+        : result.senders;
+      const castTotal = Math.max(1, isAdj ? current.quality.adjusted : result.total);
+      const leader = castList[0];
+      const leadPct = leader ? Math.round((leader.count / castTotal) * 100) : 0;
       addTitle(leader ? `${labelFor(leader.sender)} led with ${leadPct}%` : 'The participants');
 
       const ul = document.createElement('ul');
       ul.className = 'w-list';
       const medals = ['🥇', '🥈', '🥉'];
-      result.senders.slice(0, 5).forEach((s, i) => {
+      castList.slice(0, 5).forEach((s, i) => {
         const li = document.createElement('li');
         li.className = 'w-row';
         const m = document.createElement('span');
@@ -3959,7 +5180,9 @@
         const nm = document.createElement('strong');
         nm.textContent = labelFor(s.sender);
         const sm = document.createElement('small');
-        sm.textContent = `${numberFmt.format(s.count)} (${Math.round((s.count / result.total) * 100)}%)`;
+        sm.textContent = isAdj
+          ? `${formatAdjustedNum(s.count)} (${Math.round((s.count / castTotal) * 100)}% · ${s.signalPct}% real)`
+          : `${numberFmt.format(s.count)} (${Math.round((s.count / castTotal) * 100)}%)`;
         li.append(m, chip, nm, sm);
         ul.appendChild(li);
       });
@@ -4154,7 +5377,8 @@
 
   function buildWhatsAppSummary() {
     if (!current) return '';
-    const { result, insights } = current;
+    const { result } = current;
+    const insights = activeInsights();
     const wAll = wordsFor(current.anon, false);
     const baseName = current.anon
       ? 'Anonymized chat'
@@ -4162,22 +5386,41 @@
     const title = current.selectedYear ? `${baseName} · ${current.selectedYear}` : baseName;
 
     const lines = [];
-    lines.push(`💬 *${title}*`);
+    const isAdj = Boolean(current.adjusted && current.quality);
+    lines.push(`💬 *${title}*` + (isAdj ? ' (🧹 spam-adjusted)' : ''));
     const span = result.first && result.last ? ` · ${result.first} → ${result.last}` : '';
-    lines.push(`*${numberFmt.format(result.total)} message${result.total === 1 ? '' : 's'}* · ${numberFmt.format(wAll.totalWords)} words${span}`);
+    if (isAdj) {
+      const q = current.quality;
+      const bits = formatQualityBits(q.counts);
+      lines.push(`*${formatAdjustedNum(q.adjusted)} substantive messages* (${q.signalPct}% of ${numberFmt.format(q.total)} raw) · ${numberFmt.format(wAll.totalWords)} words${span}`);
+      if (bits.length) lines.push(`🧹 Filtered (${q.model.label}): ${bits.join(', ')}`);
+    } else {
+      lines.push(`*${numberFmt.format(result.total)} message${result.total === 1 ? '' : 's'}* · ${numberFmt.format(wAll.totalWords)} words${span}`);
+    }
     if (insights.archetype) {
       lines.push(`${insights.archetype.icon} Archetype: *${insights.archetype.title}*`);
     }
 
     if (result.senders.length >= 2) {
       lines.push('');
-      lines.push('📊 *Leaderboard*');
-      result.senders.slice(0, 6).forEach((s, idx) => {
-        const pct = Math.round((s.count / result.total) * 100);
-        lines.push(`${idx + 1}. ${labelFor(s.sender)} — ${numberFmt.format(s.count)} (${pct}%)`);
-      });
-      if (result.senders.length > 6) {
-        lines.push(`…and ${result.senders.length - 6} more`);
+      lines.push(isAdj ? '📊 *Leaderboard (substantive)*' : '📊 *Leaderboard*');
+      if (isAdj) {
+        const q = current.quality;
+        const tot = Math.max(1, q.adjusted);
+        q.senders.slice(0, 6).forEach((s, idx) => {
+          const pct = Math.round((s.adjusted / tot) * 100);
+          const arrow = s.rankDelta > 0 ? ` ▲${s.rankDelta}` : s.rankDelta < 0 ? ` ▼${Math.abs(s.rankDelta)}` : '';
+          lines.push(`${idx + 1}. ${labelFor(s.sender)} — ${formatAdjustedNum(s.adjusted)} (${pct}% · ${s.signalPct}% real of ${numberFmt.format(s.raw)})${arrow}`);
+        });
+        if (q.senders.length > 6) lines.push(`…and ${q.senders.length - 6} more`);
+      } else {
+        result.senders.slice(0, 6).forEach((s, idx) => {
+          const pct = Math.round((s.count / result.total) * 100);
+          lines.push(`${idx + 1}. ${labelFor(s.sender)} — ${numberFmt.format(s.count)} (${pct}%)`);
+        });
+        if (result.senders.length > 6) {
+          lines.push(`…and ${result.senders.length - 6} more`);
+        }
       }
     }
 
@@ -4434,28 +5677,33 @@
     }
 
     // Left hero WhatsApp bubble
+    const isAdj = Boolean(current.adjusted && current.quality);
     const bx = 60, by = 165, bw = 440, bh = 250;
     ctx.fillStyle = '#005c4b';
     roundRectPath(ctx, bx, by, bw, bh, 26);
     ctx.fill();
 
     ctx.fillStyle = '#e9edef';
-    const numStr = numberFmt.format(current.result.total);
+    const numStr = isAdj ? formatAdjustedNum(current.quality.adjusted) : numberFmt.format(current.result.total);
     const numFontSize = numStr.length > 7 ? 78 : numStr.length > 5 ? 96 : 114;
     ctx.font = `700 ${numFontSize}px "Space Grotesk", system-ui, sans-serif`;
     ctx.fillText(numStr, bx + 36, by + 148);
 
     ctx.fillStyle = 'rgba(233, 237, 239, 0.8)';
-    ctx.font = '400 22px "Space Grotesk", system-ui, sans-serif';
+    ctx.font = '400 20px "Space Grotesk", system-ui, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(current.result.total === 1 ? 'message' : 'messages', bx + bw - 68, by + bh - 28);
+    const wideUnit = isAdj
+      ? `substantive · ${current.quality.signalPct}% real`
+      : (current.result.total === 1 ? 'message' : 'messages');
+    ctx.fillText(wideUnit, bx + bw - 68, by + bh - 28);
     ctx.textAlign = 'left';
     drawDoubleTicks(ctx, bx + bw - 56, by + bh - 42, 3);
 
     // Archetype + Vibe line under bubble
+    const cardInsights = activeInsights();
     let vibeY = 456;
-    if (current.insights.archetype) {
-      const arch = current.insights.archetype;
+    if (cardInsights.archetype) {
+      const arch = cardInsights.archetype;
       ctx.fillStyle = '#00a884';
       ctx.font = '600 20px "Space Grotesk", system-ui, sans-serif';
       ctx.fillText(`${arch.icon} ${arch.title}`.slice(0, 36), 60, vibeY);
@@ -4475,7 +5723,10 @@
     drawMiniStripOnCard(ctx, sx, sy, sw, sh, 190);
 
     // Right side: top 5 senders
-    const topSenders = current.result.senders.slice(0, 5);
+    const cardTotal = Math.max(1, isAdj ? current.quality.adjusted : current.result.total);
+    const topSenders = isAdj
+      ? current.quality.senders.slice(0, 5).map((s) => ({ sender: s.sender, count: s.adjusted, signalPct: s.signalPct }))
+      : current.result.senders.slice(0, 5);
     topSenders.forEach((s, idx) => {
       const y = 312 + idx * 54;
       const color = current.colors.get(s.sender) || '#00a884';
@@ -4486,17 +5737,17 @@
 
       ctx.fillStyle = '#e9edef';
       ctx.font = '500 20px "Space Grotesk", system-ui, sans-serif';
-      ctx.fillText(labelFor(s.sender).slice(0, 26), sx + 22, y);
+      ctx.fillText(labelFor(s.sender).slice(0, 24), sx + 22, y);
 
       ctx.fillStyle = '#8696a0';
       ctx.textAlign = 'right';
-      ctx.fillText(numberFmt.format(s.count), sx + sw, y);
+      ctx.fillText(isAdj ? `${formatAdjustedNum(s.count)} (${s.signalPct}%)` : numberFmt.format(s.count), sx + sw, y);
       ctx.textAlign = 'left';
 
       ctx.fillStyle = '#1b252c';
       ctx.fillRect(sx, y + 12, sw, 5);
       ctx.fillStyle = color;
-      ctx.fillRect(sx, y + 12, sw * (s.count / current.result.total), 5);
+      ctx.fillRect(sx, y + 12, sw * (s.count / cardTotal), 5);
     });
 
     // Footer
@@ -4540,29 +5791,34 @@
     if (current.result.first && current.result.last) {
       ctx.fillText(`from ${current.result.first} to ${current.result.last}`, 92, 222);
     }
-    if (current.insights.archetype) {
-      const arch = current.insights.archetype;
+    const storyInsights = activeInsights();
+    if (storyInsights.archetype) {
+      const arch = storyInsights.archetype;
       ctx.fillStyle = '#00a884';
       ctx.font = '600 26px "Space Grotesk", system-ui, sans-serif';
       ctx.fillText(`${arch.icon} ${arch.title}`.slice(0, 38), 92, 264);
     }
 
     // Hero bubble
+    const isAdj = Boolean(current.adjusted && current.quality);
     const bx = 92, by = 295, bw = W - 184, bh = 310;
     ctx.fillStyle = '#005c4b';
     roundRectPath(ctx, bx, by, bw, bh, 36);
     ctx.fill();
 
     ctx.fillStyle = '#e9edef';
-    const numStr = numberFmt.format(current.result.total);
+    const numStr = isAdj ? formatAdjustedNum(current.quality.adjusted) : numberFmt.format(current.result.total);
     const numSize = numStr.length > 7 ? 112 : numStr.length > 5 ? 140 : 168;
     ctx.font = `700 ${numSize}px "Space Grotesk", system-ui, sans-serif`;
     ctx.fillText(numStr, bx + 48, by + 195);
 
     ctx.fillStyle = 'rgba(233, 237, 239, 0.85)';
-    ctx.font = '400 32px "Space Grotesk", system-ui, sans-serif';
+    ctx.font = '400 28px "Space Grotesk", system-ui, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(current.result.total === 1 ? 'message' : 'messages', bx + bw - 92, by + bh - 38);
+    const storyUnit = isAdj
+      ? `substantive · ${current.quality.signalPct}% real`
+      : (current.result.total === 1 ? 'message' : 'messages');
+    ctx.fillText(storyUnit, bx + bw - 92, by + bh - 38);
     ctx.textAlign = 'left';
     drawDoubleTicks(ctx, bx + bw - 74, by + bh - 56, 4);
 
@@ -4572,9 +5828,12 @@
     // Top 5 senders
     ctx.fillStyle = '#8696a0';
     ctx.font = '500 22px "Space Grotesk", system-ui, sans-serif';
-    ctx.fillText('top participants', 92, 875);
+    ctx.fillText(isAdj ? 'top participants (spam-adjusted)' : 'top participants', 92, 875);
 
-    const topSenders = current.result.senders.slice(0, 5);
+    const storyTotal = Math.max(1, isAdj ? current.quality.adjusted : current.result.total);
+    const topSenders = isAdj
+      ? current.quality.senders.slice(0, 5).map((s) => ({ sender: s.sender, count: s.adjusted, signalPct: s.signalPct }))
+      : current.result.senders.slice(0, 5);
     topSenders.forEach((s, idx) => {
       const y = 935 + idx * 78;
       const color = current.colors.get(s.sender) || '#00a884';
@@ -4585,31 +5844,34 @@
 
       ctx.fillStyle = '#e9edef';
       ctx.font = '500 28px "Space Grotesk", system-ui, sans-serif';
-      ctx.fillText(labelFor(s.sender).slice(0, 26), 128, y);
+      ctx.fillText(labelFor(s.sender).slice(0, 24), 128, y);
 
       ctx.fillStyle = '#8696a0';
       ctx.textAlign = 'right';
-      ctx.fillText(`${numberFmt.format(s.count)} (${Math.round((s.count / current.result.total) * 100)}%)`, W - 92, y);
+      const rightTxt = isAdj
+        ? `${formatAdjustedNum(s.count)} (${Math.round((s.count / storyTotal) * 100)}% · ${s.signalPct}% real)`
+        : `${numberFmt.format(s.count)} (${Math.round((s.count / storyTotal) * 100)}%)`;
+      ctx.fillText(rightTxt, W - 92, y);
       ctx.textAlign = 'left';
 
       ctx.fillStyle = '#1b252c';
       ctx.fillRect(92, y + 18, W - 184, 8);
       ctx.fillStyle = color;
-      ctx.fillRect(92, y + 18, (W - 184) * (s.count / current.result.total), 8);
+      ctx.fillRect(92, y + 18, (W - 184) * (s.count / storyTotal), 8);
     });
 
     // Highlights / Awards cards (2x2 grid)
     const wAll = wordsFor(current.anon, false);
     const books = WhatsAppWords.bookReport(wAll.uniqueWords);
     const cards = [];
-    if (current.insights.peakHour) {
-      cards.push(['peak hour', formatHour(current.insights.peakHour.hour)]);
+    if (storyInsights.peakHour) {
+      cards.push(['peak hour', formatHour(storyInsights.peakHour.hour)]);
     }
-    if (current.insights.peakDay) {
-      cards.push(['busiest day', `${current.insights.peakDay.label}`]);
+    if (storyInsights.peakDay) {
+      cards.push(['busiest day', `${storyInsights.peakDay.label}`]);
     }
-    if (current.insights.awards && current.insights.awards.length) {
-      for (const a of current.insights.awards.slice(0, 2)) {
+    if (storyInsights.awards && storyInsights.awards.length) {
+      for (const a of storyInsights.awards.slice(0, 2)) {
         cards.push([`${a.icon} ${a.title.toLowerCase()}`, labelFor(a.sender)]);
       }
     }

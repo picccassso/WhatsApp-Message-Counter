@@ -133,6 +133,114 @@ ok('no-ms analyze: spam still discounted', a4.adjusted < a4.total, `adjusted=${a
 check('sigmoid(0) = 0.5', Q.sigmoid(0), 0.5);
 ok('sigmoid monotonic', Q.sigmoid(-10) < Q.sigmoid(0) && Q.sigmoid(0) < Q.sigmoid(10));
 
+/* ---------- multi-language laughs, laughRatio, charRepeat & near-duplicates ---------- */
+
+check('Spanish jajaja detected', Q.kindOf(null, f('jajajaja')), 'reaction');
+check('Portuguese/KR kkkkk detected', Q.kindOf(null, f('kkkkkk')), 'reaction');
+check('French mdr detected', Q.kindOf(null, f('mdrrr')), 'reaction');
+check('Indonesian wkwkwk detected', Q.kindOf(null, f('wkwkwk')), 'reaction');
+check('lmfao detected', Q.kindOf(null, f('LMFAOO')), 'reaction');
+check('laugh phrase "im dead" detected', Q.kindOf(null, f('im dead 💀')), 'reaction');
+check('pure laugh emojis detected as reaction', Q.kindOf(null, f('😂😂😂')), 'reaction');
+check('mixed laugh filler "haha omg 😂" is reaction', Q.kindOf(null, f('haha omg 😂')), 'reaction');
+check('real sentence starting with haha stays substantive',
+  Q.kindOf(null, f('hahaha wait did you actually book the flights to Lisbon for next year?')), 'substantive');
+check('multi-word ack "fair enough" detected', Q.kindOf(null, f('Fair enough!')), 'ack');
+ok('bare "???" is NOT rewarded as a real question', f('???').hasQuestion === 0 && f('???').charRepeat === 1);
+ok('stretched spam "aaaaaaaaa" gets high charRepeat', f('aaaaaaaaa').charRepeat > 0.8);
+ok('concrete number flagged', f('meet at 7pm near gate 4').hasNumber === 1);
+
+// Near-duplicate & A/B/A spam detection within 2-minute window
+const dupChat = [
+  '12/05/2025, 18:00 - Sam: nooo',
+  '12/05/2025, 18:00 - Sam: wait',
+  '12/05/2025, 18:01 - Sam: noooooo',  // canonical matches "nooo" from 2 messages ago!
+].join('\n');
+const rDup = parse(dupChat);
+const aDup = Q.analyze(rDup.messages, { ms: parseTimestamps(rDup.messages).map((t) => t.ms) });
+check('canonical stretched near-dup across 3-msg window caught', aDup.kinds[2], 'duplicate');
+
+/* ---------- corpus IDF novelty ---------- */
+
+const idfMsgs = [];
+for (let i = 0; i < 30; i++) idfMsgs.push({ sender: 'A', text: 'blorp blorp' });
+idfMsgs.push({ sender: 'B', text: 'archipelago telescope' });
+const corpus = Q.buildCorpusStats(idfMsgs);
+const fCommon = Q.features(idfMsgs[0], { prevBySender: new Map(), ms: null, corpus });
+const fRare = Q.features(idfMsgs[30], { prevBySender: new Map(), ms: null, corpus });
+ok('rare topical words get higher IDF than chat-spammed word',
+  fRare.idfMean > fCommon.idfMean + 0.3,
+  `rare=${fRare.idfMean.toFixed(3)} common=${fCommon.idfMean.toFixed(3)}`);
+
+/* ---------- burst spam & rank flip ---------- */
+
+const flipChat = [
+  '12/05/2025, 18:00 - Alex: Hey are we still meeting at the new ramen restaurant on Friday at 7pm?',
+  '12/05/2025, 18:01 - Alex: I checked their menu and they have spicy miso and vegan tonkotsu too.',
+  '12/05/2025, 18:02 - Alex: Let me know if you want me to reserve a table for four people.',
+  '12/05/2025, 18:03 - Sam: haha',
+  '12/05/2025, 18:03 - Sam: lol 😂',
+  '12/05/2025, 18:03 - Sam: wait',
+  '12/05/2025, 18:03 - Sam: bro',
+  '12/05/2025, 18:03 - Sam: what',
+  '12/05/2025, 18:03 - Sam: fr',
+  '12/05/2025, 18:03 - Sam: ok',
+  '12/05/2025, 18:03 - Sam: 👍',
+].join('\n');
+const rFlip = parse(flipChat);
+const msFlip = parseTimestamps(rFlip.messages).map((t) => t.ms);
+const aFlip = Q.analyze(rFlip.messages, { ms: msFlip });
+check('raw leader is Sam (8 raw msgs)', aFlip.rawLeader, 'Sam');
+check('adjusted leader flips to Alex (substantive)', aFlip.adjLeader, 'Alex');
+check('leaderFlipped flag is true', aFlip.leaderFlipped, true);
+const flipAlex = aFlip.senders.find((s) => s.sender === 'Alex');
+const flipSam = aFlip.senders.find((s) => s.sender === 'Sam');
+check('Alex rankDelta is +1', flipAlex.rankDelta, 1);
+check('Sam rankDelta is -1', flipSam.rankDelta, -1);
+ok('Alex signalPct >> Sam signalPct', flipAlex.signalPct > flipSam.signalPct + 40,
+  `alex=${flipAlex.signalPct}% sam=${flipSam.signalPct}%`);
+
+/* ---------- presets ---------- */
+
+const aStrict = Q.analyze(rFlip.messages, { ms: msFlip, preset: 'strict' });
+const aLaughsOnly = Q.analyze(rFlip.messages, { ms: msFlip, preset: 'laughsOnly' });
+ok('strict preset is stricter than balanced', aStrict.adjusted <= aFlip.adjusted,
+  `strict=${aStrict.adjusted} balanced=${aFlip.adjusted}`);
+ok('laughsOnly preset is gentler than strict', aLaughsOnly.adjusted > aStrict.adjusted,
+  `laughsOnly=${aLaughsOnly.adjusted} strict=${aStrict.adjusted}`);
+
+/* ---------- explain() mathematical consistency ---------- */
+
+const expSample = Q.explain({ sender: 'A', text: 'haha omg 😂' }, { prevBySender: new Map(), ms: null });
+ok('explain returns score, logit, contributions & topReasons',
+  typeof expSample.score === 'number' && expSample.contributions.length > 0 && expSample.topReasons.length > 0);
+const recomputedP = Math.round(Q.sigmoid(expSample.logit) * 1000) / 1000;
+ok('explain sigmoid(logit) matches score', Math.abs(recomputedP - expSample.score) <= 0.002,
+  `recomputed=${recomputedP} score=${expSample.score}`);
+
+/* ---------- Active Learning sampler + real in-browser Logistic Regression trainer ---------- */
+
+const alPicks = Q.sampleUncertain(rFlip.messages, aFlip, { limit: 6 });
+ok('sampleUncertain returns deduplicated candidates', alPicks.length > 0 && alPicks.length <= 6);
+const userLabels = new Map([
+  [0, 1], [1, 1], [2, 1],
+  [3, 0], [4, 0], [5, 0], [6, 0], [7, 0],
+]);
+const trained = Q.train(rFlip.messages, userLabels, { ms: msFlip });
+ok('train returns fitted model & lossHistory',
+  trained.model && trained.model.weights && trained.lossHistory.length >= 5);
+ok('training loss decreases',
+  trained.lossHistory[trained.lossHistory.length - 1] <= trained.lossHistory[0] + 0.01,
+  `start=${trained.lossHistory[0]} end=${trained.lossHistory[trained.lossHistory.length - 1]}`);
+ok('train fits user labels accurately', trained.metrics.userAccuracy >= 0.85,
+  `userAcc=${trained.metrics.userAccuracy}`);
+ok('train computes validation accuracy & F1',
+  trained.metrics.accuracy >= 0.7 && trained.metrics.f1 >= 0.7,
+  `acc=${trained.metrics.accuracy} f1=${trained.metrics.f1}`);
+
+const autoCal = Q.autoTrain(rFlip.messages, { ms: msFlip });
+ok('autoTrain produces calibrated model', autoCal.model && autoCal.model.name === 'calibrated');
+
 /* ---------- fixture smoke test ---------- */
 
 const fs = require('fs');
