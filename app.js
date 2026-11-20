@@ -722,8 +722,17 @@
         id: 'peakHour',
         prefix: `${owl} peak`,
         value: formatHour(insights.peakHour.hour),
-        title: 'Switch strip to 24h clock and highlight peak hour',
+        title: 'Toggle 24h clock highlight on peak hour',
         onClick: () => {
+          if (current.activeVibe === 'peakHour') {
+            current.activeVibe = null;
+            current.hoverIndex = null;
+            syncVibeActive();
+            if (current.stripMode === 'clock') setStripMode('timeline');
+            else drawStrip(1);
+            return;
+          }
+          clearSpotlight();
           current.activeVibe = 'peakHour';
           setStripMode('clock');
           current.hoverIndex = insights.peakHour.hour;
@@ -737,8 +746,12 @@
         id: 'peakDay',
         prefix: '🔥 busiest day',
         value: `${insights.peakDay.label} (${numberFmt.format(insights.peakDay.count)})`,
-        title: 'Spotlight the busiest day on the strip',
+        title: 'Toggle busiest day highlight on the strip',
         onClick: () => {
+          if (current.activeVibe === 'peakDay') {
+            clearSpotlight();
+            return;
+          }
           current.activeVibe = 'peakDay';
           setSpotlightRange(
             `🔥 ${insights.peakDay.label}`,
@@ -754,9 +767,12 @@
         id: 'streak',
         prefix: '💬 streak',
         value: `${labelFor(insights.longestStreak.sender)} ×${numberFmt.format(insights.longestStreak.count)}`,
-        title: 'Spotlight this monologue streak on the strip (click again to peek)',
+        title: 'Toggle streak highlight on the strip',
         onClick: () => {
-          const already = current.activeVibe === 'streak';
+          if (current.activeVibe === 'streak') {
+            clearSpotlight();
+            return;
+          }
           current.activeVibe = 'streak';
           setSpotlightRange(
             `💬 ${labelFor(insights.longestStreak.sender)} ×${insights.longestStreak.count}`,
@@ -764,9 +780,6 @@
             insights.streakRange.endIdx
           );
           syncVibeActive();
-          if (already) {
-            openPeek(insights.streakRange.startIdx, `Longest streak · ${labelFor(insights.longestStreak.sender)} ×${insights.longestStreak.count}`);
-          }
         },
       });
     }
@@ -787,9 +800,12 @@
         id: 'fastest',
         prefix: '⚡ fastest',
         value: `${labelFor(insights.fastestReplier.sender)} (${formatDuration(insights.fastestReplier.medianMs)})`,
-        title: 'Highlight fastest replier and open their stats',
+        title: 'Toggle fastest replier highlight and stats',
         onClick: () => {
-          toggleSenderDossier(insights.fastestReplier.sender, true);
+          const closing = current.activeVibe === 'fastest' && current.openDossier === insights.fastestReplier.sender;
+          toggleSenderDossier(insights.fastestReplier.sender, !closing);
+          current.activeVibe = closing ? null : 'fastest';
+          syncVibeActive();
         },
       });
     } else if (insights.novelist && current.result.senders.length >= 2) {
@@ -797,9 +813,12 @@
         id: 'novelist',
         prefix: '✍️ novelist',
         value: `${labelFor(insights.novelist.sender)} (${insights.novelist.avgChars} ch/msg)`,
-        title: 'Highlight novelist and open their stats',
+        title: 'Toggle novelist highlight and stats',
         onClick: () => {
-          toggleSenderDossier(insights.novelist.sender, true);
+          const closing = current.activeVibe === 'novelist' && current.openDossier === insights.novelist.sender;
+          toggleSenderDossier(insights.novelist.sender, !closing);
+          current.activeVibe = closing ? null : 'novelist';
+          syncVibeActive();
         },
       });
     }
@@ -837,6 +856,10 @@
     const next = forceOpen ? sender : (current.openDossier === sender ? null : sender);
     current.openDossier = next;
     current.highlightSender = next;
+    if (!next && (current.activeVibe === 'fastest' || current.activeVibe === 'novelist')) {
+      current.activeVibe = null;
+      syncVibeActive();
+    }
     buildSenderRows(current.result);
     drawStrip(1);
     if (next) {
@@ -1561,6 +1584,10 @@
     if (!current || current.stripMode === mode) return;
     current.stripMode = mode;
     current.hoverIndex = null;
+    if (mode !== 'clock' && current.activeVibe === 'peakHour') {
+      current.activeVibe = null;
+      syncVibeActive();
+    }
     hideTooltip();
     syncStripTabs(mode);
     drawStrip(1);
