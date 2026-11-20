@@ -33,6 +33,12 @@ Anonymization is best-effort for whole-word matches of known names. Nicknames, t
 
 Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
 
+### 🧹 Spam-adjusted counts (data cleaning + a tiny ML model)
+
+The raw counter counts every parsed line. Flip **🧹 Spam-adjusted counts** to clean that first: `quality.js` runs a small, fully client-side pipeline per message — feature extraction (length, vocabulary, laugh-only / ack-only / emoji-only, duplicate within 2 minutes, rapid-fire burst, links, questions, …) → logistic-regression score `p = sigmoid(b + Σ wᵢ·xᵢ)` → cleaning rules that zero out media/deleted placeholders and collapse consecutive duplicates. Sender bars, the big answer bubble and the per-sender dossier then show the weighted **substantive** count (hover a count for the raw number and the filtered breakdown: laughs, acks, dupes, media, deleted), and the line under the bubble summarizes what was filtered. Media, deleted stubs and system notices were already tracked separately; this adds the laugh-spam/duplicate adjustment on top.
+
+The weights in `MODEL` are hand-set on obvious examples, but it is a real logistic model: `WhatsAppQuality.toCSV(result.messages, { ms })` dumps a labelled feature table you can train on in Python/sklearn (or anywhere), then paste the fitted weights back into `MODEL`. Inference always runs in your browser — nothing leaves the device.
+
 ### Interactive views, toys & Chat Wrapped ✨
 
 - **Answer bubble lenses & Chat Archetype:** click the green message-count bubble to cycle through **messages**, **words**, **characters**, **typing time**, **paperback pages**, and **scroll distance**. Underneath, the chat gets stamped with a personality **Archetype** (e.g. *3 AM Oversharing Syndicate*, *Unofficial Comedy Club*, *One-Sided Podcast*, *Victorian Pen Pals*).
@@ -74,8 +80,10 @@ Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`
 - `names.js`: built-in list of common first names and surnames used when anonymizing message bodies
 - `parser.js`: export parser, insights calculator, and anonymized re-exporter (`parse`, `senderMap`, `detectNames`, `replaceNames`, `toText`, `insights`), also loadable in Node for tests
 - `words.js`: word-games analysis (`tokenize`, `analyze`, `quizCandidates`, `bookReport`), also loadable in Node for tests
+- `quality.js`: spam-adjusted "substantive" message scoring — feature extraction + logistic model + cleaning rules (`features`, `score`, `kindOf`, `analyze`, `toCSV`, `MODEL`), also loadable in Node for tests
 - `test/parser.test.js`: run with `node test/parser.test.js`
 - `test/words.test.js`: run with `node test/words.test.js`
+- `test/quality.test.js`: run with `node test/quality.test.js`
 - `test/fixtures/`: sample exports used by the tests
 - `test/preview-big.html`: dev preview for `fixtures/big_100k.txt`
 

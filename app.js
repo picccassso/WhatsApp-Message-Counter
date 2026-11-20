@@ -51,6 +51,7 @@
   const vibeList = $('vibeList');
   const againBtn = $('againBtn');
   const anonToggle = $('anonToggle');
+  const qualityToggle = $('qualityToggle');
   const extraNamesInput = $('extraNames');
   const wrappedBtn = $('wrappedBtn');
   const exportBtn = $('exportBtn');
@@ -298,6 +299,18 @@
     if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
     hideTooltip();
   });
+
+  // 🧹 Spam-adjusted counts: re-rank senders by the quality-weighted count
+  // (laugh-spam, acks, duplicates, media all discounted — see quality.js).
+  if (qualityToggle) {
+    qualityToggle.addEventListener('change', () => {
+      if (!current) return;
+      current.adjusted = qualityToggle.checked;
+      updateExtrasLine();
+      buildSenderRows(current.result);
+      updateAnswerBubble(true);
+    });
+  }
 
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
@@ -717,6 +730,7 @@
     dropSection.hidden = false;
     anonToggle.checked = false;
     wordsToggle.checked = false;
+    if (qualityToggle) qualityToggle.checked = false;
     wordSection.hidden = true;
     if (wordSearch) wordSearch.value = '';
     if (yearFilter) {
@@ -883,6 +897,31 @@
     });
   }
 
+  /* ---------- extras line under the answer bubble ---------- */
+
+  function updateExtrasLine() {
+    if (!current || !extras) return;
+    const { result, insights, quality, adjusted } = current;
+    const parts = [];
+    if (result.media) parts.push(`${numberFmt.format(result.media)} media message${result.media === 1 ? '' : 's'}`);
+    if (result.deleted) parts.push(`${numberFmt.format(result.deleted)} deleted`);
+    if (result.edited) parts.push(`${numberFmt.format(result.edited)} edited`);
+    if (result.systemNotes) parts.push(`${numberFmt.format(result.systemNotes)} system note${result.systemNotes === 1 ? '' : 's'} skipped`);
+    if (insights.avgChars) parts.push(`avg ${numberFmt.format(insights.avgChars)} chars/msg`);
+    if (adjusted && quality) {
+      const c = quality.counts;
+      const bits = [];
+      if (c.reaction) bits.push(`${numberFmt.format(c.reaction)} laughs`);
+      if (c.ack) bits.push(`${numberFmt.format(c.ack)} acks`);
+      if (c.emoji) bits.push(`${numberFmt.format(c.emoji)} emoji-only`);
+      if (c.duplicate) bits.push(`${numberFmt.format(c.duplicate)} dupes`);
+      if (c.media) bits.push(`${numberFmt.format(c.media)} media`);
+      if (c.deleted) bits.push(`${numberFmt.format(c.deleted)} deleted`);
+      parts.push(`🧹 ${numberFmt.format(Math.round(quality.adjusted))} substantive of ${numberFmt.format(quality.total)} (${bits.join(', ')})`);
+    }
+    extras.textContent = parts.join(', ');
+  }
+
   function render(name, size, result, rawText, opts) {
     opts = opts || {};
     cancelAnimationFrame(countRaf);
@@ -901,6 +940,13 @@
       ? WhatsAppParser.insights(result)
       : { hours: new Array(24).fill(0), weekdays: new Array(7).fill(0), dayList: [], hourSenders: [], totalParsedTs: 0, textChars: result.chars || 0, avgChars: 0, senderStats: {}, awards: [] };
     const timestamps = WhatsAppParser.parseTimestamps ? WhatsAppParser.parseTimestamps(result.messages) : [];
+    // Message-quality pipeline ("spam-adjusted counts"): feature extraction +
+    // logistic scoring + cleaning rules, all client-side. See quality.js.
+    const quality = (typeof WhatsAppQuality !== 'undefined' && WhatsAppQuality.analyze)
+      ? WhatsAppQuality.analyze(result.messages, {
+          ms: timestamps.map((t) => (t && typeof t.ms === 'number' ? t.ms : null)),
+        })
+      : null;
     const onThisDay = WhatsAppParser.findOnThisDay ? WhatsAppParser.findOnThisDay(result) : { total: 0, years: [] };
 
     const colors = opts.colors ? new Map(opts.colors) : new Map();
@@ -919,6 +965,8 @@
       size,
       insights,
       timestamps,
+      quality,
+      adjusted: false,
       onThisDay,
       colors,
       map,
@@ -945,6 +993,7 @@
     };
 
     anonToggle.checked = anon;
+    if (qualityToggle) qualityToggle.checked = false;
     wordsToggle.checked = Boolean(opts.wordsOpen);
     wordSection.hidden = !opts.wordsOpen;
     syncAnonUI();
@@ -972,13 +1021,7 @@
       : rangeText;
     renderYearFilter();
 
-    const parts = [];
-    if (result.media) parts.push(`${numberFmt.format(result.media)} media message${result.media === 1 ? '' : 's'}`);
-    if (result.deleted) parts.push(`${numberFmt.format(result.deleted)} deleted`);
-    if (result.edited) parts.push(`${numberFmt.format(result.edited)} edited`);
-    if (result.systemNotes) parts.push(`${numberFmt.format(result.systemNotes)} system note${result.systemNotes === 1 ? '' : 's'} skipped`);
-    if (insights.avgChars) parts.push(`avg ${numberFmt.format(insights.avgChars)} chars/msg`);
-    extras.textContent = parts.join(', ');
+    updateExtrasLine();
 
     if (sendersBar) {
       sendersBar.hidden = result.senders.length < 2;
@@ -1047,6 +1090,12 @@
       }
       const mStr = m >= 100 ? numberFmt.format(Math.round(m)) : m.toFixed(1);
       return { value: mStr, display: mStr, unit: 'm scrolled', animate: false };
+    }
+    if (current.adjusted && current.quality) {
+      const adj = current.quality.adjusted;
+      const disp = adj >= 10 ? numberFmt.format(Math.round(adj)) : adj.toFixed(1);
+      const rounded = Math.round(adj);
+      return { value: rounded, display: disp, unit: rounded === 1 ? 'substantive message' : 'substantive messages', animate: true };
     }
     return { value: result.total, display: numberFmt.format(result.total), unit: result.total === 1 ? 'message' : 'messages', animate: true };
   }
@@ -1493,6 +1542,15 @@
         .map((s) => ({ sender: s.sender, count: raceFrame.counts.get(s.sender) || 0 }))
         .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender));
       totalForBar = Math.max(1, list[0] ? list[0].count : 1);
+    } else if (current.adjusted && current.quality) {
+      const bySender = new Map(current.quality.senders.map((x) => [x.sender, x]));
+      list = result.senders
+        .map((s) => {
+          const qs = bySender.get(s.sender);
+          return { sender: s.sender, count: qs ? qs.adjusted : s.count, raw: s.count, qs: qs || null };
+        })
+        .sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender));
+      totalForBar = Math.max(1, current.quality.adjusted);
     } else {
       list = result.senders;
       totalForBar = Math.max(1, result.total);
@@ -1518,7 +1576,21 @@
 
       const count = document.createElement('span');
       count.className = 'count';
-      count.textContent = numberFmt.format(s.count);
+      if (s.qs) {
+        // 🧹 spam-adjusted mode: show the weighted count, raw + breakdown on hover
+        const c = s.count;
+        count.textContent = c >= 10 ? numberFmt.format(Math.round(c)) : (Math.round(c * 10) / 10).toString();
+        const bits = [`${numberFmt.format(s.qs.raw)} raw`];
+        if (s.qs.reactions) bits.push(`${numberFmt.format(s.qs.reactions)} laughs`);
+        if (s.qs.acks) bits.push(`${numberFmt.format(s.qs.acks)} acks`);
+        if (s.qs.emojis) bits.push(`${numberFmt.format(s.qs.emojis)} emoji-only`);
+        if (s.qs.dupes) bits.push(`${numberFmt.format(s.qs.dupes)} dupes`);
+        if (s.qs.media) bits.push(`${numberFmt.format(s.qs.media)} media`);
+        if (s.qs.deleted) bits.push(`${numberFmt.format(s.qs.deleted)} deleted`);
+        count.title = '🧹 ' + bits.join(' · ');
+      } else {
+        count.textContent = numberFmt.format(s.count);
+      }
 
       const bar = document.createElement('span');
       bar.className = 'bar';
@@ -1601,6 +1673,21 @@
       cell.appendChild(sp);
       grid.appendChild(cell);
     };
+
+    if (current.adjusted && current.quality) {
+      const qs = current.quality.senders.find((x) => x.sender === sender);
+      if (qs) {
+        const adj = qs.adjusted >= 10 ? numberFmt.format(Math.round(qs.adjusted)) : qs.adjusted.toFixed(1);
+        const bits = [];
+        if (qs.reactions) bits.push(`${qs.reactions} laughs`);
+        if (qs.acks) bits.push(`${qs.acks} acks`);
+        if (qs.emojis) bits.push(`${qs.emojis} emoji`);
+        if (qs.dupes) bits.push(`${qs.dupes} dupes`);
+        if (qs.media) bits.push(`${qs.media} media`);
+        if (qs.deleted) bits.push(`${qs.deleted} deleted`);
+        addStat(`${adj} / ${numberFmt.format(qs.raw)}`, bits.length ? `substantive / raw 🧹 (${bits.join(', ')})` : 'substantive / raw 🧹');
+      }
+    }
 
     if (st) {
       if (st.medianReplyMs !== null) addStat(formatDuration(st.medianReplyMs), 'median reply');

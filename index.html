@@ -189,6 +189,11 @@
           <span class="track" aria-hidden="true"></span>
           <span>Word games 🎲</span>
         </label>
+        <label class="switch" title="Filter out laugh-spam, acks, duplicates and media from the counts with a tiny in-browser scoring model">
+          <input type="checkbox" id="qualityToggle">
+          <span class="track" aria-hidden="true"></span>
+          <span>🧹 Spam-adjusted counts</span>
+        </label>
         <div class="actions-end">
           <button type="button" id="wrappedBtn" class="again-btn accent-btn">✨ Wrapped</button>
           <button type="button" id="exportBtn" class="again-btn" hidden>Export anonymized .txt</button>
@@ -282,6 +287,7 @@
   <script src="names.js"></script>
   <script src="parser.js"></script>
   <script src="words.js"></script>
+  <script src="quality.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
