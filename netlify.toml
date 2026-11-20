@@ -1,0 +1,5 @@
+"$schema" = "https://open-api.netlify.com/netlify.schema.json"
+
+# Pure static site: no build step, publish the repo root as-is.
+[build]
+  publish = "."

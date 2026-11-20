@@ -1,4 +1,7 @@
-/* Message counter — WhatsApp night palette, one column, one number. */
+/* Message counter — WhatsApp night palette.
+   Base: one scrollable column (narrow windows, phones).
+   Wide screens (>= 56rem x 40rem): a full-viewport app shell that uses the
+   whole horizontal space, so the count and the breakdown fit without scrolling. */
 
 :root {
   --bg: #0b141a;
@@ -87,6 +90,7 @@ body {
 }
 .drop-title { font-size: 1.45rem; font-weight: 500; letter-spacing: -0.01em; }
 .drop-sub { color: var(--muted); font-size: 0.95rem; }
+.drop-meta { display: contents; }
 .drop-hint { color: var(--muted); font-size: 0.85rem; max-width: 34rem; margin: 0; }
 
 .text-btn {
@@ -169,6 +173,7 @@ body {
 .receipts { color: var(--receipts); flex: none; }
 
 /* rhythm strip */
+.strip-wrap { display: block; min-width: 0; }
 .strip {
   display: block;
   width: 100%;
@@ -178,6 +183,7 @@ body {
 .strip-caption { color: var(--muted); font-size: 0.8rem; margin: 0.4rem 0 0; }
 
 /* sender rows */
+.side-pane { min-width: 0; }
 .senders {
   list-style: none;
   margin: 1.75rem 0 0;
@@ -222,6 +228,7 @@ body {
   align-items: center;
   gap: 0.75rem 1.25rem;
 }
+.actions-end { display: contents; }
 
 .again-btn {
   background: none;
@@ -301,11 +308,9 @@ body {
 .word-sub { color: var(--muted); font-size: 0.85rem; margin: 0.35rem 0 0; }
 .word-h3 {
   margin: 2rem 0 0.75rem;
-  font-size: 0.78rem;
+  font-size: 1.02rem;
   font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted);
+  color: var(--text);
 }
 .word-section.empty .word-stats,
 .word-section.empty .word-h3,
@@ -313,7 +318,12 @@ body {
 .word-section.empty .word-cloud,
 .word-section.empty .book-bank { display: none; }
 
-.word-stats { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 1.25rem; }
+.word-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}
 .stat {
   background: var(--panel);
   border: 1px solid var(--hairline);
@@ -410,4 +420,142 @@ body {
 @media (max-width: 480px) {
   .drop-zone { padding: 2.5rem 1.25rem; }
   .answer { padding: 1.1rem 1.3rem 0.6rem; }
+}
+
+/* ------------------------------------------------------------------
+   Wide app shell: everything on one screen, full horizontal width.
+   Layout: slim header / meta row / hero bubble + rhythm strip /
+   scrollable breakdown pane / actions bar / footer — no page scroll.
+   ------------------------------------------------------------------ */
+@media (min-width: 56rem) and (min-height: 36rem) {
+  .page {
+    max-width: none;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+    padding: 1.1rem clamp(1.25rem, 4vw, 4rem) 0.7rem;
+  }
+
+  .top {
+    padding: 0.25rem 0.25rem 0.8rem;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  /* empty state spreads across the width */
+  .drop-section { width: 100%; gap: 1.1rem; }
+  .drop-zone {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    text-align: left;
+    padding: clamp(2.5rem, 9vh, 4.5rem) clamp(1.5rem, 4vw, 3.5rem);
+  }
+  .drop-title { font-size: clamp(1.7rem, 3.2vw, 2.6rem); }
+  .drop-sub { text-align: right; max-width: 24rem; }
+  .drop-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    width: 100%;
+  }
+  .drop-hint { max-width: none; }
+
+  .error-section { width: 100%; }
+  .error-section .bubble-in { max-width: 60rem; }
+
+  /* result: a grid that fills the viewport */
+  .result-section {
+    margin: 0;
+    padding-top: 1.1rem;
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "meta    meta"
+      "answer  strip"
+      "answer  side"
+      "actions actions";
+    column-gap: clamp(1.5rem, 3vw, 2.75rem);
+    row-gap: clamp(0.9rem, 2.2vh, 1.5rem);
+  }
+
+  .meta {
+    grid-area: meta;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    min-width: 0;
+  }
+  .file-sub { margin: 0; }
+
+  .answer-pane {
+    grid-area: answer;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1.1rem;
+  }
+  .answer {
+    align-self: flex-start;
+    padding: clamp(1.2rem, 3.2vh, 2.1rem) clamp(1.5rem, 2.6vw, 2.5rem) clamp(0.6rem, 1.6vh, 1rem);
+  }
+  .answer-num { font-size: clamp(3.8rem, min(16vh, 7.5vw), 9rem); }
+  .extras { margin: 0; }
+
+  .strip-wrap {
+    grid-area: strip;
+    display: flex;
+    align-items: flex-end;
+    gap: 1.25rem;
+    min-width: 0;
+    min-height: 0;
+  }
+  .strip {
+    flex: 1;
+    min-width: 0;
+    height: clamp(72px, 15vh, 132px);
+    margin-top: 0;
+  }
+  .strip-caption {
+    flex: none;
+    max-width: 15rem;
+    margin: 0 0 0.35rem;
+    text-align: right;
+  }
+
+  .side-pane {
+    grid-area: side;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0.45rem;
+    scrollbar-width: thin;
+    scrollbar-color: var(--hairline) transparent;
+  }
+  .side-pane::-webkit-scrollbar { width: 8px; }
+  .side-pane::-webkit-scrollbar-thumb { background: var(--hairline); border-radius: 4px; }
+  .side-pane::-webkit-scrollbar-track { background: transparent; }
+  .senders { margin-top: 0; }
+
+  .actions {
+    grid-area: actions;
+    margin-top: 0;
+    border-top: 1px solid var(--hairline);
+    padding-top: 0.9rem;
+  }
+  .actions-end {
+    display: flex;
+    gap: 0.75rem;
+    margin-left: auto;
+  }
+  .extra-names { flex: 0 1 16rem; width: auto; }
+
+  .foot { padding-top: 0.7rem; }
 }

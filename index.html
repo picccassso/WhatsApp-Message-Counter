@@ -22,8 +22,10 @@
         <span class="drop-title">Drop your WhatsApp export here</span>
         <span class="drop-sub">The .txt you get from Export chat — or browse your files</span>
       </button>
-      <p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
-      <button type="button" id="sampleBtn" class="text-btn">No export handy? Count a sample chat</button>
+      <div class="drop-meta">
+        <p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
+        <button type="button" id="sampleBtn" class="text-btn">No export handy? Count a sample chat</button>
+      </div>
       <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
     </section>
 
@@ -35,24 +37,48 @@
     </section>
 
     <section id="resultSection" class="result-section" hidden aria-live="polite">
-      <p class="file-name" id="fileName"></p>
-      <p class="file-sub" id="fileSub"></p>
-
-      <div class="bubble bubble-out answer">
-        <span class="answer-num" id="bigNumber">0</span>
-        <span class="answer-label">messages
-          <svg class="receipts" viewBox="0 0 20 12" width="18" height="11" aria-hidden="true">
-            <path d="M1 6.5 4.2 9.7 10 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M8.5 6.5 11.7 9.7 17.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
+      <div class="meta">
+        <p class="file-name" id="fileName"></p>
+        <p class="file-sub" id="fileSub"></p>
       </div>
 
-      <canvas id="strip" class="strip" role="img" aria-label="One tick per message, colored by sender"></canvas>
-      <p class="strip-caption">one tick per message, colored by sender — hover a name to spotlight them</p>
+      <div class="strip-wrap">
+        <canvas id="strip" class="strip" role="img" aria-label="One tick per message, colored by sender"></canvas>
+        <p class="strip-caption">One tick per message, colored by sender. Hover a sender to spotlight their ticks.</p>
+      </div>
 
-      <ul id="senders" class="senders"></ul>
-      <p id="extras" class="extras"></p>
+      <div class="answer-pane">
+        <div class="bubble bubble-out answer">
+          <span class="answer-num" id="bigNumber">0</span>
+          <span class="answer-label">messages
+            <svg class="receipts" viewBox="0 0 20 12" width="18" height="11" aria-hidden="true">
+              <path d="M1 6.5 4.2 9.7 10 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8.5 6.5 11.7 9.7 17.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </div>
+        <p id="extras" class="extras"></p>
+      </div>
+
+      <div class="side-pane">
+        <ul id="senders" class="senders"></ul>
+
+        <section id="wordSection" class="word-section" hidden aria-live="polite">
+          <h2 class="word-title">word games 🎲</h2>
+          <p class="word-sub" id="wordSub"></p>
+          <div id="wordStats" class="word-stats"></div>
+
+          <h3 class="word-h3">diversity leaderboard</h3>
+          <ul id="wordBoard" class="word-board"></ul>
+
+          <h3 class="word-h3">most used words</h3>
+          <div id="wordCloud" class="word-cloud"></div>
+
+          <h3 class="word-h3">the book bank</h3>
+          <p class="word-sub" id="bookNote"></p>
+          <ul id="bookBank" class="book-bank"></ul>
+        </section>
+      </div>
 
       <div class="actions">
         <label class="switch">
@@ -66,25 +92,11 @@
           <span class="track" aria-hidden="true"></span>
           <span>Word games 🎲</span>
         </label>
-        <button type="button" id="exportBtn" class="again-btn">Export .txt</button>
-        <button type="button" id="againBtn" class="again-btn">Count another file</button>
+        <div class="actions-end">
+          <button type="button" id="exportBtn" class="again-btn">Export .txt</button>
+          <button type="button" id="againBtn" class="again-btn">Count another file</button>
+        </div>
       </div>
-
-      <section id="wordSection" class="word-section" hidden aria-live="polite">
-        <h2 class="word-title">word games 🎲</h2>
-        <p class="word-sub" id="wordSub"></p>
-        <div id="wordStats" class="word-stats"></div>
-
-        <h3 class="word-h3">diversity leaderboard</h3>
-        <ul id="wordBoard" class="word-board"></ul>
-
-        <h3 class="word-h3">most used words</h3>
-        <div id="wordCloud" class="word-cloud"></div>
-
-        <h3 class="word-h3">the book bank</h3>
-        <p class="word-sub" id="bookNote"></p>
-        <ul id="bookBank" class="book-bank"></ul>
-      </section>
     </section>
 
     <footer class="foot">Everything runs in your browser — your chat never leaves this device.</footer>

@@ -1,25 +1,33 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>preview — bad file</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>preview — bad file</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../styles.css"></head>
 <body><main class="page">
 <header class="top"><span class="presence" aria-hidden="true"></span><span class="wordmark">message counter</span></header>
 <section id="dropSection" class="drop-section">
   <button type="button" id="dropZone" class="drop-zone"><span class="drop-title">Drop your WhatsApp export here</span><span class="drop-sub">The .txt you get from Export chat — or browse your files</span></button>
-  <p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
-  <button type="button" id="sampleBtn" class="text-btn">No export handy? Count a sample chat</button>
+  <div class="drop-meta"><p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
+  <button type="button" id="sampleBtn" class="text-btn">No export handy? Count a sample chat</button></div>
   <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
 </section>
 <section id="errorSection" class="error-section" hidden><div class="bubble bubble-in"><p id="errorText" class="error-text"></p><button type="button" id="errorSampleBtn" class="text-btn">Count the sample chat instead</button></div></section>
 <section id="resultSection" class="result-section" hidden aria-live="polite">
-  <p class="file-name" id="fileName"></p><p class="file-sub" id="fileSub"></p>
-  <div class="bubble bubble-out answer"><span class="answer-num" id="bigNumber">0</span><span class="answer-label">messages</span></div>
-  <canvas id="strip" class="strip"></canvas><p class="strip-caption">one tick per message, colored by sender — hover a name to spotlight them</p>
-  <ul id="senders" class="senders"></ul><p id="extras" class="extras"></p>
-  <button type="button" id="againBtn" class="again-btn">Count another file</button>
+  <div class="meta"><p class="file-name" id="fileName"></p><p class="file-sub" id="fileSub"></p></div>
+  <div class="strip-wrap"><canvas id="strip" class="strip"></canvas><p class="strip-caption">One tick per message, colored by sender. Hover a sender to spotlight their ticks.</p></div>
+  <div class="answer-pane"><div class="bubble bubble-out answer"><span class="answer-num" id="bigNumber">0</span><span class="answer-label">messages</span></div>
+  <p id="extras" class="extras"></p></div>
+  <div class="side-pane"><ul id="senders" class="senders"></ul>
+    <section id="wordSection" class="word-section" hidden><h2 class="word-title">word games 🎲</h2><p class="word-sub" id="wordSub"></p><div id="wordStats" class="word-stats"></div><h3 class="word-h3">diversity leaderboard</h3><ul id="wordBoard" class="word-board"></ul><h3 class="word-h3">most used words</h3><div id="wordCloud" class="word-cloud"></div><h3 class="word-h3">the book bank</h3><p class="word-sub" id="bookNote"></p><ul id="bookBank" class="book-bank"></ul></section>
+  </div>
+  <div class="actions">
+    <label class="switch"><input type="checkbox" id="anonToggle"><span class="track" aria-hidden="true"></span><span>Anonymize names</span></label>
+    <input type="text" id="extraNames" class="extra-names" placeholder="also hide names… e.g. Mum, Samantha">
+    <label class="switch"><input type="checkbox" id="wordsToggle"><span class="track" aria-hidden="true"></span><span>Word games 🎲</span></label>
+    <div class="actions-end"><button type="button" id="exportBtn" class="again-btn">Export .txt</button><button type="button" id="againBtn" class="again-btn">Count another file</button></div>
+  </div>
 </section>
 <footer class="foot">Everything runs in your browser — your chat never leaves this device.</footer>
 </main>
-<script src="../parser.js"></script><script src="../app.js"></script>
+<script src="../names.js"></script><script src="../parser.js"></script><script src="../words.js"></script><script src="../app.js"></script>
 <script>window.__countText('notes.txt', 'just some random text\nnothing whatsapp-like here\n');</script>
 </body></html>
