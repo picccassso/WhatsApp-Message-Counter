@@ -35,21 +35,22 @@ Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
 
 ### Interactive views, toys & Chat Wrapped ✨
 
-- **Answer bubble lenses:** click the green message-count bubble to cycle through **messages**, **words**, **characters**, **typing time**, **paperback pages**, and **scroll distance**.
-- **Rhythm strip (Timeline / 24h clock / Calendar):** scrub the timeline, inspect hourly activity, or switch to the GitHub-style **Calendar** heatmap. Type any word into **search a word...** to highlight when it peaked and see who said it most.
-- **Moment Peek & Random Memory (🎲):** click any tick on the timeline, any active day on the calendar, or **🎲 Memory** to pop open a 5-message WhatsApp bubble preview with Earlier, Random, and Later buttons.
-- **Clickable vibe chips:** jump straight to peak hour, busiest day, longest streak, longest silence broken, or fastest replier.
-- **Sender stats & Chat Race (▶):** click any sender row to expand their inline stats, catchphrase, and award badges (⚡ Fastest draw, 🐢 Left on read, 🚀 Convo starter, 🏁 Last word, 💥 Machine-gun, 🌙 Night owl, ❓ Interrogator, 📢 ALL CAPS, 📎 Link & media dealer). Hit **▶ Play race** to watch message totals play out over time.
-- **✨ Wrapped & Shareable Cards:** click **✨ Wrapped** for a 6-slide tappable recap of your chat, and download either a **16:9 Landscape card** or a **9:16 Story card** PNG.
+- **Answer bubble lenses & Chat Archetype:** click the green message-count bubble to cycle through **messages**, **words**, **characters**, **typing time**, **paperback pages**, and **scroll distance**. Underneath, the chat gets stamped with a personality **Archetype** (e.g. *3 AM Oversharing Syndicate*, *Unofficial Comedy Club*, *One-Sided Podcast*, *Victorian Pen Pals*).
+- **Rhythm strip & Word Tug-of-War:** scrub the Timeline, inspect the 24h clock, or switch to the GitHub-style **Calendar** heatmap. Type any word into **search a word…** — or tap a quick preset (`sorry`, `love`, `haha`, `wait`, `coffee`, `omg`) — to light up where it peaked and see the proportional **Word Tug-of-War** split across senders.
+- **Moment Peek, Typing Replay, Day 1 & Out-of-Context Quote Cards:** click any tick on the timeline, any active day on the calendar, or **🎲 Memory** to pop open a WhatsApp bubble preview with **← Earlier**, **🕰️ Day 1**, **🎲 Random**, and **Later →** navigation. Hit **▶ Replay** to watch the exchange play back with animated `typing…` bubbles, or click any bubble and hit **📸 Quote card** to export a standalone PNG receipt.
+- **Clickable vibe chips:** jump straight to **⚡ Chaos peak** (wildest 5-minute burst), **🎭 Comedian** (who triggers the most laughs from others, peeking straight at their punchline), **🎂 On this day** (same-date memories from past years), peak hour, busiest day, longest streak, longest silence broken, or fastest replier.
+- **Sender stats, Group Ping-Pong, Group Lore & Audio Chat Race:** click any sender row to expand their inline stats, catchphrase, laughs triggered, top reply buddy, and award badges (🎭 Comedian, ⚡ Fastest draw, 🐢 Left on read, 🚀 Convo starter, 🏁 Last word, 💥 Machine-gun, 🌙 Night owl, ❓ Interrogator, 📢 ALL CAPS, 📎 Link & media dealer). Group chats (3+ people) also reveal **🏓 Who talks to whom?** reply pairs and **📜 Group lore** (every group name change + top renamer). Flip **🔇/🔊 Sound** to hear a soft Web Audio pentatonic marimba synth during **▶ Play race** and timeline scrubbing.
+- **✨ Wrapped & Shareable Cards:** click **✨ Wrapped** (or the Archetype badge) for a 7-slide tappable recap including Archetype, Chaos Peak, Power Duo, Awards, Eras, and Lore & Time Capsule, and download either a **16:9 Landscape card** or a **9:16 Story card** PNG.
 
 ### Word games 🎲
 
 Flip the **Word games** switch on the results screen to open the vocabulary section:
 
 - **chat stats:** total words, unique words, vocabulary diversity (unique ÷ total), words per message, and top emojis.
-- **who said it?:** a mini-game that grabs a real message from the chat and asks you to guess who sent it, with streak tracking and a one-click *Peek in context* button.
+- **3-mode party quiz:** switch between **Who said it?** (guess the sender), **Mad Libs** (fill in the blank from a real message using the chat's own vocabulary), and **Guess the Era** (guess the year, month, or act a message came from), all with streak tracking and one-click *Peek in context*.
 - **diversity & catchphrases:** ranks every sender by vocabulary size (🥇🥈🥉), showing their most distinctive catchphrase (words they use far more than everyone else), diversity %, and favourite emoji.
-- **most used words:** an interactive cloud of the chat's top 12 words (click any word to highlight it on the strip, with a checkbox to skip common glue words).
+- **most used words:** an interactive cloud of the chat's top 12 words (click any word to highlight it on the strip and open its Tug-of-War bar, with a checkbox to skip common glue words).
+- **chat eras · then vs. now:** compares the first half vs. second half of the chat to surface **extinct words** (clickable), **rising slang** (clickable), pace & length shifts, and who got chattier over time.
 - **the book bank:** compares the chat's unique-word count against rough unique-word counts of five famous books (Green Eggs and Ham ≈ 50, The Cat in the Hat ≈ 230, The Hobbit ≈ 6,500, Harry Potter and the Philosopher's Stone ≈ 10,500, The Lord of the Rings ≈ 30,000) and shows the biggest book your chat's vocabulary covers.
 
 Media placeholders (`<Media omitted>`, `(file attached)`, ...) and pure numbers are skipped when counting words. Analysis runs once per file in your browser when you flip the switch, taking well under a second even on a 100k-message export.

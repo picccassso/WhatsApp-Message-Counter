@@ -2,8 +2,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse, senderMap, detectNames } = require('../parser.js');
-const { tokenize, analyze, quizCandidates, BOOKS, bookReport } = require('../words.js');
+const { parse, senderMap, detectNames, parseTimestamps } = require('../parser.js');
+const { tokenize, analyze, quizCandidates, madLibsCandidates, eraQuizCandidates, chatEras, BOOKS, bookReport } = require('../words.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -183,6 +183,56 @@ check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 23
   const qc = quizCandidates(r.messages);
   check('quizCandidates returns both senders', new Set(qc.map((q) => q.sender)).size, 2);
   check('quizCandidates skips media', quizCandidates(parse('12/05/2025, 18:43 - Alex: <Media omitted>\n12/05/2025, 18:44 - Sam: <Media omitted>\n').messages), []);
+}
+
+/* ---------- madLibsCandidates, eraQuizCandidates, chatEras ---------- */
+
+{
+  const r = parse([
+    '12/05/2024, 18:43 - Alex: espresso espresso morning espresso at the station',
+    '12/05/2024, 18:44 - Sam: grabbing espresso and a fresh croissant before boarding',
+    '13/05/2024, 09:10 - Alex: Lisbon sunshine and espresso every single morning',
+    '13/05/2024, 09:12 - Sam: booking the rooftop terrace hotel tonight for sure',
+    '14/05/2024, 10:00 - Alex: train tickets ready for the adventure ahead',
+    '14/05/2024, 10:05 - Sam: suitcase barely closed but espresso kept me alive',
+    '10/01/2025, 19:10 - Sam: craving spicy ramen bowls this freezing winter night',
+    '10/01/2025, 19:12 - Alex: spicy ramen sounds legendary on Saturday evening',
+    '11/01/2025, 12:00 - Sam: Tokyo ramen tour planning starts over noodles tonight',
+    '11/01/2025, 12:05 - Sam: seriously cannot stop thinking about spicy ramen',
+    '12/01/2025, 18:00 - Sam: ordering extra noodles and ramen broth right now',
+    '12/01/2025, 18:05 - Alex: count me in for ramen every single weekend',
+  ].join('\n'));
+  const ts = parseTimestamps(r.messages);
+
+  // Mad Libs
+  const ml = madLibsCandidates(r.messages);
+  check('madLibs produces items', ml.length >= 4, true);
+  check('madLibs each item has 3 distractors', ml.every((x) => x.distractors.length === 3 && !x.distractors.includes(x.answer)), true);
+
+  // Era quiz (2 years -> year mode)
+  const eq = eraQuizCandidates(r.messages, ts);
+  check('eraQuiz mode is year', eq.mode, 'year');
+  check('eraQuiz choices are 2024 & 2025', eq.choices, ['2024', '2025']);
+  check('eraQuiz has items from both years', new Set(eq.items.map((x) => x.answer)).size, 2);
+
+  // Era quiz short chat -> act mode
+  const shortR = parse([
+    '12/05/2025, 18:43 - Alex: opening message about the trip',
+    '12/05/2025, 18:44 - Sam: second message on the same day',
+    '12/05/2025, 18:45 - Alex: middle message talking about dinner',
+    '12/05/2025, 18:46 - Sam: another middle message with details',
+    '12/05/2025, 18:47 - Alex: finale message wrapping things up',
+    '12/05/2025, 18:48 - Sam: final message goodnight everyone',
+  ].join('\n'));
+  const shortEq = eraQuizCandidates(shortR.messages, parseTimestamps(shortR.messages));
+  check('short chat eraQuiz falls back to act mode', shortEq.mode, 'act');
+  check('act mode has 3 choices', shortEq.choices.length, 3);
+
+  // Chat Eras (Then vs. Now)
+  const eras = chatEras(r.messages, ts);
+  check('chatEras detects extinct espresso', eras.extinct.some((x) => x.word === 'espresso'), true);
+  check('chatEras detects rising ramen', eras.rising.some((x) => x.word === 'ramen'), true);
+  check('chatEras Sam got chattier in Now', eras.senderShifts.find((s) => s.sender === 'Sam').delta > 0, true);
 }
 
 /* ---------- big fixture: runs fast and sane on 100k messages ---------- */

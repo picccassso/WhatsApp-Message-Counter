@@ -25,17 +25,27 @@
   const stripCalendarBtn = $('stripCalendarBtn');
   const wordSearch = $('wordSearch');
   const wordFilterPill = $('wordFilterPill');
+  const wordDuelBar = $('wordDuelBar');
   const memoryBtn = $('memoryBtn');
   const stripHint = $('stripHint');
   const stripTooltip = $('stripTooltip');
   const sendersBar = $('sendersBar');
   const raceStatus = $('raceStatus');
+  const soundToggleBtn = $('soundToggleBtn');
   const raceBtn = $('raceBtn');
   const raceResetBtn = $('raceResetBtn');
   const raceTrack = $('raceTrack');
   const raceFill = $('raceFill');
   const sendersEl = $('senders');
+  const groupExtras = $('groupExtras');
+  const pingPongCard = $('pingPongCard');
+  const pingPongSub = $('pingPongSub');
+  const pingPongList = $('pingPongList');
+  const groupLoreCard = $('groupLoreCard');
+  const groupLoreSub = $('groupLoreSub');
+  const groupLoreList = $('groupLoreList');
   const extras = $('extras');
+  const archetypeBadge = $('archetypeBadge');
   const vibeList = $('vibeList');
   const againBtn = $('againBtn');
   const anonToggle = $('anonToggle');
@@ -51,6 +61,10 @@
   const wordSub = $('wordSub');
   const wordStats = $('wordStats');
   const quizBox = $('quizBox');
+  const quizModeWho = $('quizModeWho');
+  const quizModeMad = $('quizModeMad');
+  const quizModeEra = $('quizModeEra');
+  const quizPromptHint = $('quizPromptHint');
   const quizScore = $('quizScore');
   const quizQuote = $('quizQuote');
   const quizMeta = $('quizMeta');
@@ -62,6 +76,9 @@
   const wordBoard = $('wordBoard');
   const stopWordsToggle = $('stopWordsToggle');
   const wordCloud = $('wordCloud');
+  const erasBox = $('erasBox');
+  const erasSpan = $('erasSpan');
+  const erasGrid = $('erasGrid');
   const bookNote = $('bookNote');
   const bookBank = $('bookBank');
   const bookExpandBtn = $('bookExpandBtn');
@@ -71,10 +88,13 @@
   const peekTitle = $('peekTitle');
   const peekSub = $('peekSub');
   const peekMessages = $('peekMessages');
+  const peekReplayBtn = $('peekReplayBtn');
   const peekCloseBtn = $('peekCloseBtn');
   const peekPrevBtn = $('peekPrevBtn');
+  const peekDay1Btn = $('peekDay1Btn');
   const peekRandomBtn = $('peekRandomBtn');
   const peekNextBtn = $('peekNextBtn');
+  const peekQuoteBtn = $('peekQuoteBtn');
 
   const wrappedModal = $('wrappedModal');
   const wrappedBars = $('wrappedBars');
@@ -87,7 +107,8 @@
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const numberFmt = new Intl.NumberFormat();
   const LENS_COUNT = 6;
-  const WRAPPED_SLIDES = 6;
+  const WRAPPED_SLIDES = 7;
+  const WORD_PRESETS = ['sorry', 'love', 'haha', 'wait', 'coffee', 'omg'];
 
   // WhatsApp-ish participant colors, assigned in order of message count.
   const PALETTE = ['#00a884', '#53bdeb', '#f0b429', '#e56399', '#a78bfa', '#f47c48', '#7cd4c0', '#ff8a65'];
@@ -95,32 +116,48 @@
   const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const SAMPLE = [
-    '12/05/2025, 18:42 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.',
-    '12/05/2025, 18:43 - Alex: are we still on for tomorrow?',
-    '12/05/2025, 18:43 - Sam: yes! train at 8 🚆',
-    '12/05/2025, 18:44 - Alex: perfect, I will bring the tickets',
-    '12/05/2025, 18:45 - Sam: IMG-20250512-WA0004.jpg (file attached)',
-    '12/05/2025, 18:45 - Alex: haha, nice one 😂',
-    '12/05/2025, 18:46 - Sam: look at this\nand this\nand this',
-    '12/05/2025, 18:47 - Alex: <Media omitted>',
-    '12/05/2025, 18:49 - Sam: wait until you see the view from the top',
-    '13/05/2025, 08:12 - Alex: morning! coffee at 9? ☕',
-    '13/05/2025, 08:13 - Sam: 9 works',
-    '13/05/2025, 08:14 - Alex: great, see you there',
-    '13/05/2025, 09:02 - Sam: on my way now',
-    '13/05/2025, 09:15 - Sam changed the subject to "Trip plans"',
-    '13/05/2025, 09:20 - Alex: booking the hotel tonight',
-    '13/05/2025, 09:21 - Sam: I can look at flights',
-    '13/05/2025, 09:22 - Alex: deal',
-    '13/05/2025, 09:25 - Sam: VID-20250513-WA0001.mp4 (file attached)',
-    '13/05/2025, 09:26 - Alex: that shortcut is unreal 🔥',
-    '13/05/2025, 09:27 - Sam: adding it to the doc\nsecond line of the doc link',
-    '14/05/2025, 19:40 - Alex: hotel booked',
-    '14/05/2025, 19:41 - Sam: flights at 10:15',
-    '14/05/2025, 19:42 - Alex: we are actually doing this 😂',
-    '14/05/2025, 19:43 - Sam: we are',
-    '15/05/2025, 07:55 - Alex: gate closes in 20',
-    '15/05/2025, 07:56 - Sam: running',
+    '12/05/2024, 18:42 - Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.',
+    '12/05/2024, 18:42 - Alex created group "Trip plans"',
+    '12/05/2024, 18:43 - Alex: are we still on for the Lisbon trip tomorrow?',
+    '12/05/2024, 18:43 - Sam: yes! espresso at the station at 8 ☕',
+    '12/05/2024, 18:44 - Priya: sorry I am still packing my backpack lol',
+    '12/05/2024, 18:44 - Alex: classic Priya, I will bring the train tickets',
+    '12/05/2024, 18:45 - Sam: IMG-20240512-WA0004.jpg (file attached)',
+    '12/05/2024, 18:45 - Alex: haha that suitcase is bigger than your flat 😂',
+    '12/05/2024, 18:46 - Priya: wait look at this\nand this\nand this',
+    '12/05/2024, 18:47 - Sam: omg I love this itinerary already',
+    '13/05/2024, 08:12 - Alex: morning! coffee at 9? ☕',
+    '13/05/2024, 08:13 - Sam: 9 works, grabbing espresso right now',
+    '13/05/2024, 08:14 - Priya: running late sorry!! save me a croissant',
+    '13/05/2024, 09:02 - Sam: on my way now',
+    '13/05/2024, 09:15 - Sam changed the subject to "Lisbon Squad 2024 🇵🇹"',
+    '13/05/2024, 09:20 - Alex: booking the hotel tonight, check https://example.com/hotel',
+    '13/05/2024, 09:21 - Sam: I can look at flights',
+    '13/05/2024, 09:22 - Priya: deal, just make sure there is a rooftop terrace',
+    '13/05/2024, 09:25 - Sam: VID-20240513-WA0001.mp4 (file attached)',
+    '13/05/2024, 09:26 - Alex: that shortcut is unreal 🔥',
+    '14/05/2024, 23:40 - Priya: WAIT STOP EVERYTHING',
+    '14/05/2024, 23:40 - Alex: what happened?!',
+    '14/05/2024, 23:41 - Priya: I accidentally booked the return flight for NEXT YEAR',
+    '14/05/2024, 23:41 - Sam: HAHAHA NO WAY 😂😂',
+    '14/05/2024, 23:41 - Alex: lmao guess you live in Lisbon now 💀',
+    '14/05/2024, 23:42 - Priya changed the subject to "Priya Lives In Lisbon Now"',
+    '14/05/2024, 23:42 - Sam: wait can you still cancel within 24 hours?',
+    '14/05/2024, 23:43 - Priya: omg yes fixed it! crisis averted 😅',
+    '14/05/2024, 23:44 - Alex: legend, never change',
+    '10/01/2025, 19:10 - Sam: happy new year team! reunion dinner soon?',
+    '10/01/2025, 19:11 - Alex: YES! ramen or tacos this weekend?',
+    '10/01/2025, 19:12 - Priya: ramen 100%, I am craving spicy ramen so bad',
+    '10/01/2025, 19:13 - Sam: love ramen, Saturday at 7?',
+    '10/01/2025, 19:14 - Alex: Saturday ramen locked in 🍜',
+    '10/01/2025, 19:15 - Priya: wait should we plan the next summer trip over ramen?',
+    '10/01/2025, 19:16 - Sam: Tokyo ramen tour 2025 let us gooo',
+    '10/01/2025, 19:17 - Alex: haha only if Priya lets someone else book the flights 😂',
+    '10/01/2025, 19:18 - Priya: fair enough lol I deserve that',
+    '10/01/2025, 19:19 - Sam changed the subject to "Tokyo Ramen Tour 2025 🍜"',
+    '11/01/2025, 11:05 - Alex: <Media omitted>',
+    '11/01/2025, 11:06 - Sam: omg look at those ramen bowls, starving already',
+    '11/01/2025, 11:07 - Priya: see you both at 7, actually leaving early this time!',
     '',
   ].join('\n');
 
@@ -128,6 +165,83 @@
   let countRaf = 0;
   let raceRaf = 0;
   let searchTimer = null;
+  let lensTimer = null;
+  let lensPaused = false;
+  let soundEnabled = false;
+  let audioCtx = null;
+  let lastNoteAt = 0;
+  let replayTimers = [];
+
+  /* ---------- Web Audio pentatonic marimba synth ---------- */
+
+  const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25];
+
+  function ensureAudio() {
+    if (audioCtx) {
+      if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+      return audioCtx;
+    }
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return null;
+    try {
+      audioCtx = new Ctx();
+    } catch {
+      return null;
+    }
+    return audioCtx;
+  }
+
+  function playSenderNote(sender, weight) {
+    if (!soundEnabled || !current) return;
+    const nowMs = performance.now();
+    if (nowMs - lastNoteAt < 48) return;
+    lastNoteAt = nowMs;
+
+    const ctx = ensureAudio();
+    if (!ctx) return;
+    const idx = Math.max(0, current.result.senders.findIndex((s) => s.sender === sender));
+    const freq = PENTATONIC[idx % PENTATONIC.length];
+    const t0 = ctx.currentTime;
+    const w = Math.max(0.25, Math.min(1, weight == null ? 0.6 : weight));
+
+    try {
+      const osc = ctx.createOscillator();
+      const harm = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const hGain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t0);
+      harm.type = 'triangle';
+      harm.frequency.setValueAtTime(freq * 2, t0);
+
+      const peak = 0.045 + 0.055 * w;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.linearRampToValueAtTime(peak, t0 + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.24 + 0.1 * w);
+
+      hGain.gain.setValueAtTime(0.18, t0);
+
+      osc.connect(gain);
+      harm.connect(hGain);
+      hGain.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(t0);
+      harm.start(t0);
+      osc.stop(t0 + 0.38);
+      harm.stop(t0 + 0.38);
+    } catch {
+      // Ignore audio scheduling errors in restricted contexts
+    }
+  }
+
+  function syncSoundBtn() {
+    if (!soundToggleBtn) return;
+    soundToggleBtn.textContent = soundEnabled ? '🔊 Sound' : '🔇 Sound';
+    soundToggleBtn.classList.toggle('on', soundEnabled);
+    soundToggleBtn.setAttribute('aria-pressed', String(soundEnabled));
+  }
 
   /* ---------- file intake ---------- */
 
@@ -151,7 +265,18 @@
     current.anon = anonToggle.checked;
     syncAnonUI();
     buildSenderRows(current.result);
+    renderGroupExtras();
     renderVibes();
+    renderWordDuelBar();
+    if (current.spotlightWord) {
+      const sw = current.spotlightWord;
+      const who = sw.topSender && current.result.senders.length >= 2 ? ` · mostly ${labelFor(sw.topSender)}` : '';
+      if (wordFilterPill) {
+        wordFilterPill.textContent = sw.hits
+          ? `“${sw.word}” ×${numberFmt.format(sw.hits)}${who} ×`
+          : `“${sw.word}” · 0 matches ×`;
+      }
+    }
     if (!wordSection.hidden) {
       renderWords();
       renderQuizCurrent();
@@ -213,6 +338,19 @@
   if (wrappedBtn) {
     wrappedBtn.addEventListener('click', openWrapped);
   }
+  if (archetypeBadge) {
+    archetypeBadge.addEventListener('click', openWrapped);
+  }
+  if (soundToggleBtn) {
+    soundToggleBtn.addEventListener('click', () => {
+      soundEnabled = !soundEnabled;
+      syncSoundBtn();
+      if (soundEnabled && current && current.result.senders.length) {
+        ensureAudio();
+        playSenderNote(current.result.senders[0].sender, 0.7);
+      }
+    });
+  }
 
   wordsToggle.addEventListener('change', () => {
     if (!current) return;
@@ -245,9 +383,31 @@
     answerBtn.addEventListener('click', () => {
       if (!current) return;
       current.lensIndex = (current.lensIndex + 1) % LENS_COUNT;
-      updateAnswerBubble(false);
+      updateAnswerBubble(false, true);
+      scheduleLensAuto(4500);
+    });
+    answerBtn.addEventListener('pointerenter', () => {
+      lensPaused = true;
+      stopLensAuto();
+    });
+    answerBtn.addEventListener('pointerleave', () => {
+      lensPaused = false;
+      scheduleLensAuto(3200);
+    });
+    answerBtn.addEventListener('focus', () => {
+      lensPaused = true;
+      stopLensAuto();
+    });
+    answerBtn.addEventListener('blur', () => {
+      lensPaused = false;
+      scheduleLensAuto(3200);
     });
   }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopLensAuto();
+    else if (current && !lensPaused) scheduleLensAuto(4500);
+  });
 
   if (stripTimelineBtn) stripTimelineBtn.addEventListener('click', () => setStripMode('timeline'));
   if (stripClockBtn) stripClockBtn.addEventListener('click', () => setStripMode('clock'));
@@ -292,11 +452,20 @@
     raceResetBtn.addEventListener('click', () => stopRace(true));
   }
 
+  if (quizModeWho) quizModeWho.addEventListener('click', () => setQuizMode('who'));
+  if (quizModeMad) quizModeMad.addEventListener('click', () => setQuizMode('mad'));
+  if (quizModeEra) quizModeEra.addEventListener('click', () => setQuizMode('era'));
   if (quizNextBtn) quizNextBtn.addEventListener('click', nextQuizQuestion);
   if (quizPeekBtn) {
     quizPeekBtn.addEventListener('click', () => {
-      if (!current || !current.quiz || !current.quiz.current) return;
-      openPeek(current.quiz.current.index, 'From “Who said it?”');
+      const qState = activeQuizState();
+      if (!qState || !qState.current) return;
+      const modeTitle = current.quiz.mode === 'mad'
+        ? 'From “Mad Libs”'
+        : current.quiz.mode === 'era'
+          ? 'From “Guess the Era”'
+          : 'From “Who said it?”';
+      openPeek(qState.current.index, modeTitle);
     });
   }
 
@@ -310,6 +479,7 @@
   if (peekPrevBtn) {
     peekPrevBtn.addEventListener('click', () => {
       if (!current || !current.peek) return;
+      stopPeekReplay();
       current.peek.index = Math.max(0, current.peek.index - 4);
       current.peek.title = 'Moment peek';
       renderPeekWindow();
@@ -318,12 +488,26 @@
   if (peekNextBtn) {
     peekNextBtn.addEventListener('click', () => {
       if (!current || !current.peek) return;
+      stopPeekReplay();
       current.peek.index = Math.min(current.result.messages.length - 1, current.peek.index + 4);
       current.peek.title = 'Moment peek';
       renderPeekWindow();
     });
   }
+  if (peekDay1Btn) {
+    peekDay1Btn.addEventListener('click', () => {
+      if (!current || !current.result.messages.length) return;
+      openPeek(0, '🕰️ Day 1 · The very beginning');
+    });
+  }
   if (peekRandomBtn) peekRandomBtn.addEventListener('click', () => openRandomPeek());
+  if (peekReplayBtn) peekReplayBtn.addEventListener('click', togglePeekReplay);
+  if (peekQuoteBtn) {
+    peekQuoteBtn.addEventListener('click', () => {
+      if (!current || !current.peek) return;
+      saveQuoteCard(current.peek.index, peekQuoteBtn);
+    });
+  }
 
   if (wrappedCloseBtn) wrappedCloseBtn.addEventListener('click', closeWrapped);
   if (wrappedModal) {
@@ -418,6 +602,7 @@
 
   function reset() {
     cancelAnimationFrame(countRaf);
+    stopLensAuto();
     stopRace(false);
     closePeek();
     closeWrapped();
@@ -489,7 +674,9 @@
       if (!current) return;
       current.detected = null;
       current.wordsCache = {};
+      current.erasCache = {};
       if (current.anon) {
+        renderGroupExtras();
         if (!wordSection.hidden) {
           renderWords();
           renderQuizCurrent();
@@ -534,6 +721,7 @@
 
   function render(name, size, result, rawText) {
     cancelAnimationFrame(countRaf);
+    stopLensAuto();
     stopRace(false);
     closePeek();
     closeWrapped();
@@ -542,10 +730,14 @@
     const insights = WhatsAppParser.insights
       ? WhatsAppParser.insights(result)
       : { hours: new Array(24).fill(0), weekdays: new Array(7).fill(0), dayList: [], hourSenders: [], totalParsedTs: 0, textChars: result.chars || 0, avgChars: 0, senderStats: {}, awards: [] };
+    const timestamps = WhatsAppParser.parseTimestamps ? WhatsAppParser.parseTimestamps(result.messages) : [];
+    const onThisDay = WhatsAppParser.findOnThisDay ? WhatsAppParser.findOnThisDay(result) : { total: 0, years: [] };
 
     current = {
       result,
       insights,
+      timestamps,
+      onThisDay,
       colors: new Map(),
       map: WhatsAppParser.senderMap(result),
       anon: false,
@@ -553,6 +745,7 @@
       rawText,
       detected: null,
       wordsCache: {},
+      erasCache: {},
       stripMode: 'timeline',
       hoverIndex: null,
       highlightSender: null,
@@ -573,6 +766,7 @@
     wordsToggle.checked = false;
     wordSection.hidden = true;
     syncAnonUI();
+    syncSoundBtn();
     if (wordFilterPill) wordFilterPill.hidden = true;
     if (wordSearch) wordSearch.value = '';
     syncStripTabs('timeline');
@@ -608,8 +802,11 @@
       if (raceTrack) raceTrack.hidden = true;
     }
 
+    renderArchetype();
     renderVibes();
+    renderWordDuelBar();
     buildSenderRows(result);
+    renderGroupExtras();
     updateAnswerBubble(true);
 
     drawStrip(1);
@@ -661,7 +858,26 @@
     return { value: result.total, display: numberFmt.format(result.total), unit: result.total === 1 ? 'message' : 'messages', animate: true };
   }
 
-  function updateAnswerBubble(animateInitial) {
+  function stopLensAuto() {
+    clearTimeout(lensTimer);
+    lensTimer = null;
+  }
+
+  function scheduleLensAuto(delayMs) {
+    stopLensAuto();
+    if (reduceMotion || lensPaused || document.hidden || !current || resultSection.hidden) return;
+    lensTimer = setTimeout(() => {
+      if (!current || lensPaused || document.hidden || resultSection.hidden) return;
+      const modalOpen = (peekModal && !peekModal.hidden) || (wrappedModal && !wrappedModal.hidden);
+      if (!modalOpen) {
+        current.lensIndex = (current.lensIndex + 1) % LENS_COUNT;
+        updateAnswerBubble(false, true);
+      }
+      scheduleLensAuto(4500);
+    }, delayMs == null ? 4500 : delayMs);
+  }
+
+  function updateAnswerBubble(animateInitial, animateSwap) {
     const data = lensData(current.lensIndex);
     if (answerUnit) answerUnit.textContent = data.unit;
     if (answerDots) {
@@ -673,17 +889,25 @@
       }
     }
 
+    if (animateSwap && answerBtn && !reduceMotion) {
+      answerBtn.classList.remove('swap');
+      void answerBtn.offsetWidth;
+      answerBtn.classList.add('swap');
+    }
+
     if (animateInitial && data.animate) {
       if (receiptsIcon) receiptsIcon.classList.remove('read');
       if (typingStatus && !reduceMotion) typingStatus.hidden = false;
       countUp(bigNumber, data.value, () => {
         if (typingStatus) typingStatus.hidden = true;
         if (receiptsIcon) receiptsIcon.classList.add('read');
+        scheduleLensAuto(5500);
       });
     } else {
       bigNumber.textContent = data.display;
       if (typingStatus) typingStatus.hidden = true;
       if (receiptsIcon) receiptsIcon.classList.add('read');
+      if (animateInitial) scheduleLensAuto(5500);
     }
   }
 
@@ -709,13 +933,84 @@
     countRaf = requestAnimationFrame(frame);
   }
 
-  /* ---------- clickable chat vibe superlatives ---------- */
+  /* ---------- chat archetype badge + clickable chat vibe superlatives ---------- */
+
+  function renderArchetype() {
+    if (!archetypeBadge || !current) return;
+    const arch = current.insights.archetype;
+    if (!arch) {
+      archetypeBadge.hidden = true;
+      return;
+    }
+    archetypeBadge.textContent = '';
+    const icon = document.createElement('span');
+    icon.className = 'archetype-icon';
+    icon.textContent = arch.icon;
+    const txt = document.createElement('span');
+    txt.className = 'archetype-text';
+    const title = document.createElement('span');
+    title.className = 'archetype-title';
+    title.textContent = arch.title;
+    const sub = document.createElement('span');
+    sub.className = 'archetype-sub';
+    sub.textContent = arch.tagline;
+    txt.append(title, sub);
+    archetypeBadge.append(icon, txt);
+    archetypeBadge.hidden = false;
+  }
 
   function renderVibes() {
     if (!vibeList || !current) return;
-    const { insights } = current;
+    const { insights, onThisDay } = current;
     const items = [];
 
+    if (onThisDay && onThisDay.total > 0 && onThisDay.years.length) {
+      const latest = onThisDay.years[0];
+      items.push({
+        id: 'onThisDay',
+        prefix: `🎂 on ${onThisDay.label}`,
+        value: `${numberFmt.format(onThisDay.total)} msg${onThisDay.total === 1 ? '' : 's'} (${onThisDay.years.map((y) => y.year).join(', ')})`,
+        title: 'Peek at memories from this exact date in past years',
+        onClick: () => {
+          openPeek(latest.firstIdx, `🎂 On this day · ${onThisDay.label} ${latest.year}`);
+        },
+      });
+    }
+    if (insights.chaosPeak) {
+      const cp = insights.chaosPeak;
+      items.push({
+        id: 'chaosPeak',
+        prefix: '⚡ chaos peak',
+        value: `${numberFmt.format(cp.count)} msgs in ${cp.durationMin}m`,
+        title: `Highlight and peek at the wildest 5-minute burst (${cp.startTs})`,
+        onClick: () => {
+          if (current.activeVibe === 'chaosPeak') {
+            clearSpotlight();
+            return;
+          }
+          current.activeVibe = 'chaosPeak';
+          setSpotlightRange(`⚡ Chaos peak (${cp.count} in ${cp.durationMin}m)`, cp.startIdx, cp.endIdx);
+          syncVibeActive();
+          openPeek(cp.startIdx, `⚡ Chaos peak · ${cp.count} msgs in ${cp.durationMin}m`);
+        },
+      });
+    }
+    if (insights.comedian && current.result.senders.length >= 2) {
+      const cm = insights.comedian;
+      items.push({
+        id: 'comedian',
+        prefix: '🎭 comedian',
+        value: `${labelFor(cm.sender)} (×${numberFmt.format(cm.count)})`,
+        title: cm.punchlineIdx !== null ? 'Peek at one of their laugh-triggering punchlines' : 'Highlight comedian',
+        onClick: () => {
+          if (cm.punchlineIdx !== null) {
+            openPeek(cm.punchlineIdx, `🎭 Punchline by ${labelFor(cm.sender)}`);
+          } else {
+            toggleSenderDossier(cm.sender);
+          }
+        },
+      });
+    }
     if (insights.peakHour) {
       const owl = insights.peakHour.hour >= 22 || insights.peakHour.hour <= 4 ? '🦉' : '⏰';
       items.push({
@@ -825,7 +1120,7 @@
 
     vibeList.textContent = '';
     vibeList.hidden = items.length === 0;
-    for (const item of items.slice(0, 5)) {
+    for (const item of items.slice(0, 7)) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'vibe-chip';
@@ -994,6 +1289,21 @@
       if (current.result.senders.length >= 2) {
         addStat(`${st.starts} / ${st.lastWords}`, 'starts / last word');
       }
+      if (st.laughsTriggered) {
+        addStat(
+          `🎭 ×${numberFmt.format(st.laughsTriggered)}`,
+          'laughs triggered',
+          st.bestPunchlineIdx !== null
+            ? () => openPeek(st.bestPunchlineIdx, `🎭 Punchline by ${labelFor(sender)}`)
+            : null
+        );
+      }
+      if (current.result.senders.length >= 3 && st.bestie) {
+        addStat(
+          `${labelFor(st.bestie.partner)} (${st.bestie.pct}%)`,
+          'top reply buddy'
+        );
+      }
       if (st.nightMsgs) addStat(`${st.nightPct}%`, 'after midnight');
       if (st.questions) addStat(numberFmt.format(st.questions), 'questions asked');
     }
@@ -1022,6 +1332,98 @@
       li.classList.toggle('active', li.dataset.sender === sender);
     }
     drawStrip(1);
+  }
+
+  /* ---------- Group Ping-Pong & Group Lore cards ---------- */
+
+  function renderGroupExtras() {
+    if (!groupExtras || !current) return;
+    const { result, insights } = current;
+    let shownAny = false;
+
+    // 1. Ping-Pong: Who talks to whom (for 3+ person group chats)
+    const pp = insights.pingPong;
+    const showPingPong = result.senders.length >= 3 && pp && pp.pairs && pp.pairs.length > 0 && pp.totalExchanges >= 2;
+    if (pingPongCard && pingPongList) {
+      pingPongCard.hidden = !showPingPong;
+      if (showPingPong) {
+        shownAny = true;
+        if (pingPongSub) {
+          pingPongSub.textContent = `${numberFmt.format(pp.totalExchanges)} back-and-forths`;
+        }
+        pingPongList.textContent = '';
+        const topCount = Math.max(1, pp.pairs[0].count);
+        for (const pair of pp.pairs.slice(0, 5)) {
+          const li = document.createElement('li');
+          li.className = 'pingpong-row';
+
+          const top = document.createElement('div');
+          top.className = 'pingpong-top';
+          const pairSpan = document.createElement('span');
+          pairSpan.className = 'pingpong-pair';
+
+          const dotA = document.createElement('span');
+          dotA.className = 'dot';
+          dotA.style.background = current.colors.get(pair.a) || '#00a884';
+          const dotB = document.createElement('span');
+          dotB.className = 'dot';
+          dotB.style.background = current.colors.get(pair.b) || '#53bdeb';
+          const arrow = document.createElement('span');
+          arrow.className = 'pingpong-arrow';
+          arrow.textContent = '↔';
+
+          pairSpan.append(dotA, labelFor(pair.a), arrow, dotB, labelFor(pair.b));
+
+          const meta = document.createElement('span');
+          meta.className = 'pingpong-meta';
+          meta.textContent = `${numberFmt.format(pair.count)} (${pair.pct}%)`;
+
+          top.append(pairSpan, meta);
+
+          const bar = document.createElement('span');
+          bar.className = 'pingpong-bar';
+          const fill = document.createElement('i');
+          fill.style.width = ((pair.count / topCount) * 100).toFixed(1) + '%';
+          fill.style.background = `linear-gradient(90deg, ${current.colors.get(pair.a) || '#00a884'}, ${current.colors.get(pair.b) || '#53bdeb'})`;
+          bar.appendChild(fill);
+
+          li.append(top, bar);
+          pingPongList.appendChild(li);
+        }
+      }
+    }
+
+    // 2. Group Lore: subject creation & renames from system notes
+    const lore = insights.groupLore;
+    const showLore = Boolean(lore && lore.changes && lore.changes.length > 0);
+    if (groupLoreCard && groupLoreList) {
+      groupLoreCard.hidden = !showLore;
+      if (showLore) {
+        shownAny = true;
+        if (groupLoreSub) {
+          const who = lore.topRenamer
+            ? ` · top renamer: ${labelFor(lore.topRenamer.actor)} (×${lore.topRenamer.count})`
+            : '';
+          groupLoreSub.textContent = `${lore.changes.length} name${lore.changes.length === 1 ? '' : 's'}${who}`;
+        }
+        groupLoreList.textContent = '';
+        for (const ch of lore.changes.slice(0, 12)) {
+          const li = document.createElement('li');
+          li.className = 'lore-item';
+          const subj = document.createElement('span');
+          subj.className = 'lore-subject';
+          subj.textContent = `“${textFor(ch.subject)}”`;
+          const meta = document.createElement('span');
+          meta.className = 'lore-meta';
+          const actorLabel = current.map.has(ch.actor) ? labelFor(ch.actor) : textFor(ch.actor);
+          meta.textContent = `${ch.kind === 'created' ? 'created by' : 'renamed by'} ${actorLabel} · ${ch.ts}`;
+          li.append(subj, meta);
+          groupLoreList.appendChild(li);
+        }
+      }
+    }
+
+    groupExtras.hidden = !shownAny;
   }
 
   /* ---------- chat race (time-lapse sender replay) ---------- */
@@ -1084,14 +1486,34 @@
 
     const msPerFrame = Math.max(55, Math.min(180, Math.round(5200 / Math.max(1, r.frames.length))));
 
+    function playRaceFrameSound(frame, prevFrame) {
+      if (!soundEnabled || !frame) return;
+      let bestSender = null;
+      let bestDelta = 0;
+      for (const [s, c] of frame.counts) {
+        const prev = prevFrame ? (prevFrame.counts.get(s) || 0) : 0;
+        const delta = c - prev;
+        if (delta > bestDelta) {
+          bestDelta = delta;
+          bestSender = s;
+        }
+      }
+      if (bestSender) {
+        const weight = Math.min(1, 0.35 + Math.log2(1 + bestDelta) / 6);
+        playSenderNote(bestSender, weight);
+      }
+    }
+
     function step(now) {
       if (!current || !current.race || !current.race.playing) return;
       if (now - r.lastTick >= msPerFrame) {
         r.lastTick = now;
+        const prevF = r.frameIdx > 0 ? r.frames[r.frameIdx - 1] : null;
         const f = r.frames[r.frameIdx];
         if (raceStatus) raceStatus.textContent = `race · ${f.ts} (${numberFmt.format(f.idx + 1)} msgs)`;
         if (raceFill) raceFill.style.width = f.pct.toFixed(1) + '%';
         buildSenderRows(current.result, f);
+        playRaceFrameSound(f, prevF);
         if (r.frameIdx >= r.frames.length - 1) {
           r.playing = false;
           if (raceBtn) raceBtn.textContent = '↻ Replay';
@@ -1107,6 +1529,7 @@
     if (raceStatus) raceStatus.textContent = `race · ${f0.ts}`;
     if (raceFill) raceFill.style.width = f0.pct.toFixed(1) + '%';
     buildSenderRows(current.result, f0);
+    playRaceFrameSound(f0, null);
     raceRaf = requestAnimationFrame(step);
   }
 
@@ -1136,6 +1559,7 @@
     if (wordSearch && document.activeElement !== wordSearch) wordSearch.value = '';
     syncWordChipActive();
     syncVibeActive();
+    renderWordDuelBar();
     drawStrip(1);
   }
 
@@ -1150,7 +1574,69 @@
     }
     if (current.stripMode !== 'timeline') setStripMode('timeline');
     syncWordChipActive();
+    renderWordDuelBar();
     drawStrip(1);
+  }
+
+  function renderWordDuelBar() {
+    if (!wordDuelBar || !current) return;
+    wordDuelBar.textContent = '';
+
+    const sw = current.spotlightWord;
+    if (sw && sw.hits > 0 && sw.breakdown && sw.breakdown.length && current.result.senders.length >= 2) {
+      const wrap = document.createElement('div');
+      wrap.className = 'duel-wrap';
+
+      const track = document.createElement('div');
+      track.className = 'duel-track';
+      for (const entry of sw.breakdown) {
+        const seg = document.createElement('span');
+        seg.className = 'duel-seg';
+        seg.style.width = ((entry.count / sw.hits) * 100).toFixed(2) + '%';
+        seg.style.background = current.colors.get(entry.sender) || '#00a884';
+        seg.title = `${labelFor(entry.sender)}: ${numberFmt.format(entry.count)} (${entry.pct}%)`;
+        track.appendChild(seg);
+      }
+
+      const legend = document.createElement('div');
+      legend.className = 'duel-legend';
+      const topTag = document.createElement('span');
+      topTag.textContent = `“${sw.word}” split:`;
+      legend.appendChild(topTag);
+      for (const entry of sw.breakdown.slice(0, 4)) {
+        const item = document.createElement('span');
+        item.className = 'duel-item';
+        const dot = document.createElement('span');
+        dot.className = 'dot';
+        dot.style.background = current.colors.get(entry.sender) || '#00a884';
+        const strong = document.createElement('strong');
+        strong.textContent = labelFor(entry.sender);
+        item.append(dot, strong, ` ${entry.pct}% (${numberFmt.format(entry.count)})`);
+        legend.appendChild(item);
+      }
+
+      wrap.append(track, legend);
+      wordDuelBar.appendChild(wrap);
+      wordDuelBar.hidden = false;
+      return;
+    }
+
+    // Otherwise show mischievous quick-preset pills
+    const row = document.createElement('div');
+    row.className = 'word-presets';
+    const lbl = document.createElement('span');
+    lbl.textContent = 'try a word duel:';
+    row.appendChild(lbl);
+    for (const preset of WORD_PRESETS) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'word-preset-btn';
+      btn.textContent = preset;
+      btn.addEventListener('click', () => setSpotlightWord(preset));
+      row.appendChild(btn);
+    }
+    wordDuelBar.appendChild(row);
+    wordDuelBar.hidden = false;
   }
 
   function setSpotlightWord(word, opts) {
@@ -1209,11 +1695,14 @@
 
     let topSender = null;
     let topCount = 0;
+    const breakdown = [];
     for (const [s, c] of bySender) {
       if (c > topCount) { topCount = c; topSender = s; }
+      breakdown.push({ sender: s, count: c, pct: hits ? Math.round((c / hits) * 100) : 0 });
     }
+    breakdown.sort((a, b) => b.count - a.count || a.sender.localeCompare(b.sender));
 
-    current.spotlightWord = { word, flags, hits, topSender };
+    current.spotlightWord = { word, flags, hits, topSender, breakdown };
     if (wordFilterPill) {
       const who = topSender && current.result.senders.length >= 2 ? ` · mostly ${labelFor(topSender)}` : '';
       wordFilterPill.textContent = hits
@@ -1225,6 +1714,7 @@
     if (current.stripMode !== 'timeline') setStripMode('timeline');
 
     syncWordChipActive();
+    renderWordDuelBar();
     drawStrip(1);
   }
 
@@ -1367,6 +1857,9 @@
       wordCloud.appendChild(chipEl);
     }
 
+    // chat eras (Then vs. Now)
+    renderEras();
+
     // the book bank (compact by default, expandable to all 5)
     const report = WhatsAppWords.bookReport(w.uniqueWords);
     const next = report.books.find((b) => !b.covered);
@@ -1432,7 +1925,135 @@
     }
   }
 
-  /* ---------- "Who said it?" mini-game ---------- */
+  /* ---------- Chat Eras (Then vs. Now) ---------- */
+
+  function erasFor(anon) {
+    if (!WhatsAppWords.chatEras) return null;
+    const key = (anon ? 'anon|' : 'plain|') + readExtraNames().join(',');
+    if (!Object.prototype.hasOwnProperty.call(current.erasCache, key)) {
+      current.erasCache[key] = WhatsAppWords.chatEras(
+        current.result.messages,
+        current.timestamps,
+        anon ? { senderMap: current.map, nameMap: ensureDetected() } : {}
+      );
+    }
+    return current.erasCache[key];
+  }
+
+  function renderEras() {
+    if (!erasBox || !erasGrid || !current) return;
+    const eras = erasFor(current.anon);
+    if (!eras) {
+      erasBox.hidden = true;
+      return;
+    }
+    erasBox.hidden = false;
+    if (erasSpan) erasSpan.textContent = `${eras.thenLabel} → ${eras.nowLabel}`;
+    erasGrid.textContent = '';
+
+    // Card 1: Extinct words
+    if (eras.extinct.length) {
+      const card = document.createElement('div');
+      card.className = 'era-card';
+      const head = document.createElement('span');
+      head.className = 'era-card-head';
+      head.textContent = `🦕 went extinct since ${eras.thenLabel}`;
+      const chips = document.createElement('div');
+      chips.className = 'era-chips';
+      for (const item of eras.extinct) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'era-chip extinct';
+        btn.textContent = item.word;
+        const sm = document.createElement('small');
+        sm.textContent = `${item.thenCount}→${item.nowCount}`;
+        btn.appendChild(sm);
+        btn.title = `Spotlight “${item.word}” on the strip`;
+        btn.addEventListener('click', () => setSpotlightWord(item.word));
+        chips.appendChild(btn);
+      }
+      card.append(head, chips);
+      erasGrid.appendChild(card);
+    }
+
+    // Card 2: Rising slang
+    if (eras.rising.length) {
+      const card = document.createElement('div');
+      card.className = 'era-card';
+      const head = document.createElement('span');
+      head.className = 'era-card-head';
+      head.textContent = `🌱 rising in ${eras.nowLabel}`;
+      const chips = document.createElement('div');
+      chips.className = 'era-chips';
+      for (const item of eras.rising) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'era-chip rising';
+        btn.textContent = item.word;
+        const sm = document.createElement('small');
+        sm.textContent = `${item.thenCount}→${item.nowCount}`;
+        btn.appendChild(sm);
+        btn.title = `Spotlight “${item.word}” on the strip`;
+        btn.addEventListener('click', () => setSpotlightWord(item.word));
+        chips.appendChild(btn);
+      }
+      card.append(head, chips);
+      erasGrid.appendChild(card);
+    }
+
+    // Card 3: Pace & chatter shift
+    const shiftCard = document.createElement('div');
+    shiftCard.className = 'era-card';
+    const shiftHead = document.createElement('span');
+    shiftHead.className = 'era-card-head';
+    shiftHead.textContent = '📈 vibe & chatter shift';
+    const list = document.createElement('div');
+    list.className = 'era-shifts';
+
+    const addShift = (label, valText, cls) => {
+      const row = document.createElement('div');
+      row.className = 'era-shift-row';
+      const l = document.createElement('span');
+      l.textContent = label;
+      const v = document.createElement('span');
+      if (cls) v.className = cls;
+      v.textContent = valText;
+      row.append(l, v);
+      list.appendChild(row);
+    };
+
+    if (eras.thenMsgsPerDay && eras.nowMsgsPerDay) {
+      const deltaPace = Math.round((eras.nowMsgsPerDay - eras.thenMsgsPerDay) * 10) / 10;
+      addShift(
+        'msgs/active day',
+        `${eras.thenMsgsPerDay} → ${eras.nowMsgsPerDay}`,
+        deltaPace > 0 ? 'up' : deltaPace < 0 ? 'down' : 'flat'
+      );
+    }
+    if (eras.thenAvgChars || eras.nowAvgChars) {
+      const dChars = eras.nowAvgChars - eras.thenAvgChars;
+      addShift(
+        'avg length',
+        `${eras.thenAvgChars} → ${eras.nowAvgChars} ch`,
+        dChars > 0 ? 'up' : dChars < 0 ? 'down' : 'flat'
+      );
+    }
+    if (eras.senderShifts.length >= 2) {
+      for (const sh of eras.senderShifts.slice(0, 3)) {
+        const sign = sh.delta > 0 ? '+' : '';
+        addShift(
+          labelFor(sh.sender),
+          `${sh.pctThen}% → ${sh.pctNow}% (${sign}${sh.delta}%)`,
+          sh.delta >= 3 ? 'up' : sh.delta <= -3 ? 'down' : 'flat'
+        );
+      }
+    }
+
+    shiftCard.append(shiftHead, list);
+    erasGrid.appendChild(shiftCard);
+  }
+
+  /* ---------- 3-Mode Party Quiz (Who said it? / Mad Libs / Guess the Era) ---------- */
 
   function shuffle(arr) {
     const a = arr.slice();
@@ -1443,51 +2064,116 @@
     return a;
   }
 
+  function makeQuizState(pool, extra) {
+    return Object.assign({
+      pool,
+      cursor: 0,
+      correct: 0,
+      total: 0,
+      streak: 0,
+      current: null,
+      choices: [],
+      picked: null,
+    }, extra || {});
+  }
+
+  function activeQuizState() {
+    if (!current || !current.quiz) return null;
+    return current.quiz.states[current.quiz.mode] || null;
+  }
+
   function ensureQuiz() {
     if (!quizBox || !current) return;
-    if (current.result.senders.length < 2 || !WhatsAppWords.quizCandidates) {
-      quizBox.hidden = true;
-      return;
-    }
     if (!current.quiz) {
-      const pool = shuffle(WhatsAppWords.quizCandidates(current.result.messages));
-      if (!pool.length) {
+      const whoPool = (current.result.senders.length >= 2 && WhatsAppWords.quizCandidates)
+        ? shuffle(WhatsAppWords.quizCandidates(current.result.messages))
+        : [];
+      const madPool = WhatsAppWords.madLibsCandidates
+        ? shuffle(WhatsAppWords.madLibsCandidates(current.result.messages, {
+          senderMap: current.map,
+          nameMap: ensureDetected(),
+        }))
+        : [];
+      const eraRaw = WhatsAppWords.eraQuizCandidates
+        ? WhatsAppWords.eraQuizCandidates(current.result.messages, current.timestamps)
+        : { mode: 'act', choices: [], items: [] };
+      const eraPool = shuffle(eraRaw.items || []);
+
+      const states = {
+        who: whoPool.length ? makeQuizState(whoPool) : null,
+        mad: madPool.length ? makeQuizState(madPool) : null,
+        era: eraPool.length ? makeQuizState(eraPool, { eraMode: eraRaw.mode, allEraChoices: eraRaw.choices }) : null,
+      };
+      const firstMode = states.who ? 'who' : states.mad ? 'mad' : states.era ? 'era' : null;
+      if (!firstMode) {
         quizBox.hidden = true;
         return;
       }
-      current.quiz = {
-        pool,
-        cursor: 0,
-        correct: 0,
-        total: 0,
-        streak: 0,
-        current: null,
-        choices: [],
-        picked: null,
-      };
+      current.quiz = { mode: firstMode, states };
       nextQuizQuestion();
     } else {
       renderQuizCurrent();
     }
+    syncQuizModeTabs();
     quizBox.hidden = false;
   }
 
-  function nextQuizQuestion() {
+  function syncQuizModeTabs() {
     if (!current || !current.quiz) return;
-    const qz = current.quiz;
+    const map = [
+      [quizModeWho, 'who'],
+      [quizModeMad, 'mad'],
+      [quizModeEra, 'era'],
+    ];
+    for (const [btn, m] of map) {
+      if (!btn) continue;
+      const available = Boolean(current.quiz.states[m]);
+      btn.hidden = !available;
+      btn.classList.toggle('active', current.quiz.mode === m);
+      btn.setAttribute('aria-selected', String(current.quiz.mode === m));
+    }
+  }
+
+  function setQuizMode(mode) {
+    if (!current || !current.quiz || !current.quiz.states[mode]) return;
+    current.quiz.mode = mode;
+    syncQuizModeTabs();
+    const st = current.quiz.states[mode];
+    if (!st.current) nextQuizQuestion();
+    else renderQuizCurrent();
+  }
+
+  function nextQuizQuestion() {
+    const qz = activeQuizState();
+    if (!qz) return;
+    const mode = current.quiz.mode;
     if (qz.cursor >= qz.pool.length) {
       qz.pool = shuffle(qz.pool);
       qz.cursor = 0;
     }
     const item = qz.pool[qz.cursor++];
-    const allSenders = current.result.senders.map((s) => s.sender);
-    let choices;
-    if (allSenders.length <= 4) {
-      choices = allSenders;
-    } else {
-      const others = shuffle(allSenders.filter((s) => s !== item.sender)).slice(0, 3);
-      choices = shuffle([item.sender].concat(others));
+    let choices = [];
+
+    if (mode === 'who') {
+      const allSenders = current.result.senders.map((s) => s.sender);
+      if (allSenders.length <= 4) {
+        choices = allSenders;
+      } else {
+        const others = shuffle(allSenders.filter((s) => s !== item.sender)).slice(0, 3);
+        choices = shuffle([item.sender].concat(others));
+      }
+    } else if (mode === 'mad') {
+      choices = shuffle([item.answer].concat(item.distractors));
+    } else if (mode === 'era') {
+      const allC = qz.allEraChoices || [];
+      if (allC.length <= 4) {
+        choices = allC.slice();
+      } else {
+        const others = shuffle(allC.filter((c) => c !== item.answer)).slice(0, 3);
+        choices = [item.answer].concat(others).sort((a, b) => allC.indexOf(a) - allC.indexOf(b));
+      }
     }
+
     qz.current = item;
     qz.choices = choices;
     qz.picked = null;
@@ -1495,40 +2181,80 @@
   }
 
   function renderQuizCurrent() {
-    if (!current || !current.quiz || !current.quiz.current || !quizBox) return;
-    const qz = current.quiz;
+    const qz = activeQuizState();
+    if (!qz || !qz.current || !quizBox) return;
+    const mode = current.quiz.mode;
     const item = qz.current;
+    syncQuizModeTabs();
 
     if (quizScore) {
       const streakTxt = qz.streak >= 2 ? `🔥 ${qz.streak} · ` : '';
       quizScore.textContent = `${streakTxt}${qz.correct} / ${qz.total}`;
     }
-    if (quizQuote) {
-      quizQuote.textContent = `“${textFor(item.text)}”`;
+
+    if (quizPromptHint) {
+      if (mode === 'mad') {
+        quizPromptHint.textContent = `${labelFor(item.sender)} sent this — fill in the blank:`;
+        quizPromptHint.hidden = false;
+      } else if (mode === 'era') {
+        const unit = qz.eraMode === 'year' ? 'year' : qz.eraMode === 'month' ? 'month' : 'part of the chat';
+        quizPromptHint.textContent = `${labelFor(item.sender)} said this — which ${unit}?`;
+        quizPromptHint.hidden = false;
+      } else {
+        quizPromptHint.hidden = true;
+      }
     }
+
+    if (quizQuote) {
+      const displayText = textFor(item.text);
+      if (mode === 'mad') {
+        quizQuote.textContent = '';
+        const re = new RegExp('(?<![\\p{L}\\p{N}_])(' + escapeRegExp(item.answer) + ')(?![\\p{L}\\p{N}_])', 'iu');
+        const m = re.exec(displayText);
+        if (m) {
+          const before = displayText.slice(0, m.index);
+          const after = displayText.slice(m.index + m[0].length);
+          const blank = document.createElement('span');
+          blank.className = 'madlib-blank' + (qz.picked !== null ? ' revealed' : '');
+          blank.textContent = qz.picked !== null ? m[0] : '_____';
+          quizQuote.append('“', before, blank, after, '”');
+        } else {
+          quizQuote.textContent = `“${displayText}”`;
+        }
+      } else {
+        quizQuote.textContent = `“${displayText}”`;
+      }
+    }
+
     if (quizMeta) {
       quizMeta.hidden = qz.picked === null;
       quizMeta.textContent = `${labelFor(item.sender)} · ${item.ts}`;
     }
 
+    const correctKey = mode === 'who' ? item.sender : item.answer;
+
     if (quizChoices) {
       quizChoices.textContent = '';
-      for (const sender of qz.choices) {
+      for (const choice of qz.choices) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'quiz-choice';
-        const dot = document.createElement('span');
-        dot.className = 'chip';
-        dot.style.background = current.colors.get(sender);
-        btn.append(dot, labelFor(sender));
+        if (mode === 'who') {
+          const dot = document.createElement('span');
+          dot.className = 'chip';
+          dot.style.background = current.colors.get(choice);
+          btn.append(dot, labelFor(choice));
+        } else {
+          btn.textContent = choice;
+        }
 
         if (qz.picked !== null) {
           btn.disabled = true;
-          if (sender === item.sender) btn.classList.add('correct');
-          else if (sender === qz.picked) btn.classList.add('wrong');
+          if (choice === correctKey) btn.classList.add('correct');
+          else if (choice === qz.picked) btn.classList.add('wrong');
           else btn.classList.add('dim');
         } else {
-          btn.addEventListener('click', () => answerQuiz(sender));
+          btn.addEventListener('click', () => answerQuiz(choice));
         }
         quizChoices.appendChild(btn);
       }
@@ -1537,21 +2263,29 @@
     if (quizFooter && quizFeedback) {
       quizFooter.hidden = qz.picked === null;
       if (qz.picked !== null) {
-        const right = qz.picked === item.sender;
+        const right = qz.picked === correctKey;
         quizFeedback.className = 'quiz-feedback ' + (right ? 'good' : 'miss');
-        quizFeedback.textContent = right
-          ? 'Spot on!'
-          : `Actually ${labelFor(item.sender)}`;
+        if (right) {
+          quizFeedback.textContent = 'Spot on!';
+        } else if (mode === 'who') {
+          quizFeedback.textContent = `Actually ${labelFor(item.sender)}`;
+        } else if (mode === 'mad') {
+          quizFeedback.textContent = `It was “${item.answer}”`;
+        } else {
+          quizFeedback.textContent = `Sent in ${item.answer}`;
+        }
       }
     }
   }
 
-  function answerQuiz(sender) {
-    if (!current || !current.quiz || current.quiz.picked !== null) return;
-    const qz = current.quiz;
-    qz.picked = sender;
+  function answerQuiz(choice) {
+    const qz = activeQuizState();
+    if (!qz || qz.picked !== null) return;
+    const mode = current.quiz.mode;
+    const correctKey = mode === 'who' ? qz.current.sender : qz.current.answer;
+    qz.picked = choice;
     qz.total++;
-    if (sender === qz.current.sender) {
+    if (choice === correctKey) {
       qz.correct++;
       qz.streak++;
     } else {
@@ -1985,11 +2719,16 @@
     if (layout.mode === 'timeline') {
       const b = Math.min(layout.buckets - 1, Math.floor(x / layout.slot));
       if (b < 0) return;
-      if (current.hoverIndex !== b) {
+      const changed = current.hoverIndex !== b;
+      if (changed) {
         current.hoverIndex = b;
         drawStrip(1);
       }
       const { best, bucketCount } = pickTimelineBest(b);
+      if (changed && soundEnabled) {
+        const weight = Math.min(1, 0.3 + Math.log(1 + best.text.length) / 6);
+        playSenderNote(best.sender, weight);
+      }
       const bodyTxt = best.media
         ? 'media message'
         : textFor(best.text).replace(/\s+/g, ' ');
@@ -2121,7 +2860,17 @@
     }
   });
 
-  /* ---------- Moment Peek (Time Capsule modal) ---------- */
+  /* ---------- Moment Peek (Time Capsule modal + Replay + Out-of-Context Quote Card) ---------- */
+
+  function stopPeekReplay() {
+    for (const t of replayTimers) clearTimeout(t);
+    replayTimers = [];
+    if (current && current.peek) current.peek.replaying = false;
+    if (peekReplayBtn) {
+      peekReplayBtn.textContent = '▶ Replay';
+      peekReplayBtn.classList.remove('on');
+    }
+  }
 
   function openRandomPeek() {
     if (!current || !current.result.messages.length) return;
@@ -2139,20 +2888,55 @@
 
   function openPeek(index, title) {
     if (!current || !peekModal) return;
+    stopPeekReplay();
     const clamped = Math.max(0, Math.min(current.result.messages.length - 1, index));
-    current.peek = { index: clamped, title: title || 'Moment peek' };
+    current.peek = { index: clamped, title: title || 'Moment peek', replaying: false };
     renderPeekWindow();
     peekModal.hidden = false;
     if (peekCloseBtn) peekCloseBtn.focus();
   }
 
   function closePeek() {
+    stopPeekReplay();
     if (peekModal) peekModal.hidden = true;
     if (current) current.peek = null;
   }
 
+  function createPeekBubbleEl(i, m, rightSender, isTarget, animate) {
+    const row = document.createElement('div');
+    const isRight = m.sender === rightSender;
+    row.className = 'peek-msg ' + (isRight ? 'out' : 'in') + (isTarget ? ' target' : '') + (animate ? ' entering' : '');
+    row.title = 'Click to select this message for Quote card';
+    row.addEventListener('click', () => {
+      if (!current || !current.peek || current.peek.replaying) return;
+      current.peek.index = i;
+      if (peekSub) {
+        peekSub.textContent = `message #${numberFmt.format(i + 1)} of ${numberFmt.format(current.result.messages.length)} · ${m.ts}`;
+      }
+      for (const el of peekMessages.querySelectorAll('.peek-msg')) {
+        el.classList.toggle('target', el === row);
+      }
+    });
+
+    const senderEl = document.createElement('span');
+    senderEl.className = 'peek-sender';
+    senderEl.style.color = isRight ? '#a7f3d0' : (current.colors.get(m.sender) || '#53bdeb');
+    senderEl.textContent = labelFor(m.sender);
+
+    const textEl = document.createElement('span');
+    textEl.textContent = m.media ? '📎 Media message' : textFor(m.text);
+
+    const tsEl = document.createElement('span');
+    tsEl.className = 'peek-ts';
+    tsEl.textContent = m.ts;
+
+    row.append(senderEl, textEl, tsEl);
+    return row;
+  }
+
   function renderPeekWindow() {
     if (!current || !current.peek || !peekMessages) return;
+    stopPeekReplay();
     const msgs = current.result.messages;
     const idx = current.peek.index;
     const start = Math.max(0, idx - 2);
@@ -2163,6 +2947,7 @@
     if (peekSub) peekSub.textContent = `message #${numberFmt.format(idx + 1)} of ${numberFmt.format(msgs.length)} · ${msgs[idx].ts}`;
     if (peekPrevBtn) peekPrevBtn.disabled = start === 0;
     if (peekNextBtn) peekNextBtn.disabled = end === msgs.length - 1;
+    if (peekDay1Btn) peekDay1Btn.disabled = idx === 0;
 
     peekMessages.textContent = '';
     const ls = current.insights.longestSilence;
@@ -2175,26 +2960,261 @@
         gapEl.textContent = `🌵 ${formatDuration(ls.ms)} of silence`;
         peekMessages.appendChild(gapEl);
       }
-
-      const row = document.createElement('div');
-      const isRight = m.sender === rightSender;
-      row.className = 'peek-msg ' + (isRight ? 'out' : 'in') + (i === idx ? ' target' : '');
-
-      const senderEl = document.createElement('span');
-      senderEl.className = 'peek-sender';
-      senderEl.style.color = isRight ? '#a7f3d0' : (current.colors.get(m.sender) || '#53bdeb');
-      senderEl.textContent = labelFor(m.sender);
-
-      const textEl = document.createElement('span');
-      textEl.textContent = m.media ? '📎 Media message' : textFor(m.text);
-
-      const tsEl = document.createElement('span');
-      tsEl.className = 'peek-ts';
-      tsEl.textContent = m.ts;
-
-      row.append(senderEl, textEl, tsEl);
-      peekMessages.appendChild(row);
+      peekMessages.appendChild(createPeekBubbleEl(i, m, rightSender, i === idx, false));
     }
+  }
+
+  function togglePeekReplay() {
+    if (!current || !current.peek || !peekMessages) return;
+    if (current.peek.replaying) {
+      renderPeekWindow();
+      return;
+    }
+
+    const msgs = current.result.messages;
+    const idx = current.peek.index;
+    const start = Math.max(0, idx - 2);
+    const end = Math.min(msgs.length - 1, idx + 2);
+    const rightSender = current.result.senders[0] ? current.result.senders[0].sender : null;
+    const ls = current.insights.longestSilence;
+
+    current.peek.replaying = true;
+    if (peekReplayBtn) {
+      peekReplayBtn.textContent = '⏹ Stop';
+      peekReplayBtn.classList.add('on');
+    }
+    peekMessages.textContent = '';
+
+    let cursor = start;
+    function playNext() {
+      if (!current || !current.peek || !current.peek.replaying) return;
+      if (cursor > end) {
+        stopPeekReplay();
+        return;
+      }
+      const i = cursor++;
+      const m = msgs[i];
+      if (ls && i === ls.endIdx && i > start) {
+        const gapEl = document.createElement('div');
+        gapEl.className = 'peek-gap';
+        gapEl.textContent = `🌵 ${formatDuration(ls.ms)} of silence`;
+        peekMessages.appendChild(gapEl);
+      }
+
+      const isRight = m.sender === rightSender;
+      const typingEl = document.createElement('div');
+      typingEl.className = 'peek-typing' + (isRight ? ' out' : '');
+      const who = document.createElement('span');
+      who.textContent = `${labelFor(m.sender)} is typing`;
+      const dots = document.createElement('span');
+      dots.className = 'dots';
+      dots.setAttribute('aria-hidden', 'true');
+      dots.append(document.createElement('i'), document.createElement('i'), document.createElement('i'));
+      typingEl.append(who, dots);
+      peekMessages.appendChild(typingEl);
+      peekMessages.scrollTop = peekMessages.scrollHeight;
+
+      const typeDelay = reduceMotion ? 160 : Math.min(950, Math.max(420, 320 + m.text.length * 7));
+      const t1 = setTimeout(() => {
+        if (!current || !current.peek || !current.peek.replaying) return;
+        typingEl.remove();
+        const bubble = createPeekBubbleEl(i, m, rightSender, i === idx, true);
+        peekMessages.appendChild(bubble);
+        peekMessages.scrollTop = peekMessages.scrollHeight;
+        if (soundEnabled) playSenderNote(m.sender, 0.55);
+
+        const t2 = setTimeout(playNext, reduceMotion ? 180 : 380);
+        replayTimers.push(t2);
+      }, typeDelay);
+      replayTimers.push(t1);
+    }
+
+    playNext();
+  }
+
+  function wrapCanvasLines(ctx, text, maxW, maxLines) {
+    const paragraphs = String(text).split(/\r?\n/);
+    const lines = [];
+    for (const para of paragraphs) {
+      const words = para.split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        if (lines.length < maxLines) lines.push('');
+        continue;
+      }
+      let line = '';
+      for (const word of words) {
+        const test = line ? line + ' ' + word : word;
+        if (ctx.measureText(test).width <= maxW) {
+          line = test;
+        } else {
+          if (line) {
+            lines.push(line);
+            if (lines.length >= maxLines) break;
+          }
+          // Handle super long unbreakable tokens (e.g. URLs)
+          if (ctx.measureText(word).width > maxW) {
+            let chunk = '';
+            for (const ch of word) {
+              if (ctx.measureText(chunk + ch).width > maxW && chunk) {
+                lines.push(chunk);
+                if (lines.length >= maxLines) break;
+                chunk = ch;
+              } else {
+                chunk += ch;
+              }
+            }
+            line = chunk;
+          } else {
+            line = word;
+          }
+        }
+        if (lines.length >= maxLines) break;
+      }
+      if (line && lines.length < maxLines) lines.push(line);
+      if (lines.length >= maxLines) break;
+    }
+    if (lines.length === maxLines && paragraphs.join(' ').length > lines.join(' ').length + 3) {
+      lines[maxLines - 1] = lines[maxLines - 1].replace(/\s*\S*$/, '') + '…';
+    }
+    return lines.length ? lines : [' '];
+  }
+
+  function saveQuoteCard(msgIdx, feedbackBtn) {
+    if (!current) return;
+    const m = current.result.messages[msgIdx];
+    if (!m) return;
+
+    const W = 1080;
+    const rawBody = m.media ? '📎 Media message' : textFor(m.text);
+    const senderLabel = labelFor(m.sender);
+    const senderColor = current.colors.get(m.sender) || '#00a884';
+
+    // Measure text height first so short & long quotes both look razor sharp
+    const probe = document.createElement('canvas').getContext('2d');
+    if (!probe) return;
+    const fontSize = rawBody.length > 180 ? 34 : rawBody.length > 90 ? 40 : 48;
+    const lineHeight = Math.round(fontSize * 1.38);
+    probe.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+    const bubbleW = W - 180;
+    const innerMaxW = bubbleW - 88;
+    const lines = wrapCanvasLines(probe, rawBody, innerMaxW, 10);
+
+    const bubbleH = Math.max(220, 128 + lines.length * lineHeight + 56);
+    const H = Math.max(640, bubbleH + 340);
+
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    const ctx = c.getContext('2d');
+    if (!ctx) return;
+
+    // Dark background + ambient glow
+    ctx.fillStyle = '#0b141a';
+    ctx.fillRect(0, 0, W, H);
+    const grad = ctx.createRadialGradient(W * 0.82, H * 0.16, 20, W * 0.82, H * 0.16, 480);
+    grad.addColorStop(0, hexToRgba(senderColor, 0.2));
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Outer frame
+    ctx.strokeStyle = '#2a3942';
+    ctx.lineWidth = 3;
+    roundRectPath(ctx, 36, 36, W - 72, H - 72, 36);
+    ctx.stroke();
+
+    // Header
+    ctx.fillStyle = '#00a884';
+    ctx.beginPath();
+    ctx.arc(96, 102, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#e9edef';
+    ctx.font = '600 24px "Space Grotesk", system-ui, sans-serif';
+    ctx.fillText('out of context', 118, 111);
+
+    ctx.fillStyle = '#8696a0';
+    ctx.font = '400 20px "Space Grotesk", system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(`message #${numberFmt.format(msgIdx + 1)}`, W - 88, 110);
+    ctx.textAlign = 'left';
+
+    // WhatsApp incoming bubble + left tail
+    const bx = 90;
+    const by = Math.round((H - bubbleH) / 2) + 8;
+    ctx.fillStyle = '#202c33';
+    roundRectPath(ctx, bx, by, bubbleW, bubbleH, 30);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(bx + 12, by + bubbleH - 28);
+    ctx.lineTo(bx - 16, by + bubbleH);
+    ctx.lineTo(bx + 26, by + bubbleH);
+    ctx.closePath();
+    ctx.fill();
+
+    // Colored sender name
+    ctx.fillStyle = senderColor;
+    ctx.font = '700 28px "Space Grotesk", system-ui, sans-serif';
+    ctx.fillText(senderLabel.slice(0, 36), bx + 44, by + 64);
+
+    // Wrapped message body
+    ctx.fillStyle = '#e9edef';
+    ctx.font = `500 ${fontSize}px "Space Grotesk", system-ui, sans-serif`;
+    lines.forEach((ln, idx) => {
+      ctx.fillText(ln, bx + 44, by + 118 + idx * lineHeight);
+    });
+
+    // Timestamp + blue double ticks
+    ctx.fillStyle = 'rgba(233, 237, 239, 0.58)';
+    ctx.font = '400 22px "Space Grotesk", system-ui, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(m.ts, bx + bubbleW - 86, by + bubbleH - 32);
+    ctx.textAlign = 'left';
+    drawDoubleTicks(ctx, bx + bubbleW - 72, by + bubbleH - 48, 3.2);
+
+    // Footer
+    const chatLabel = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.txt$/i, '');
+    ctx.fillStyle = '#8696a0';
+    ctx.font = '400 20px "Space Grotesk", system-ui, sans-serif';
+    ctx.fillText(`${chatLabel.slice(0, 36)} · whatsapp message counter`, 90, H - 72);
+
+    const base = current.anon ? 'anonymized-quote' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '') + '-quote';
+    const filename = `${base}-${msgIdx + 1}.png`;
+    const dataUrl = c.toDataURL('image/png');
+    const blob = dataUrlToBlob(dataUrl);
+
+    const flashBtn = (label) => {
+      if (!feedbackBtn) return;
+      const prev = feedbackBtn.dataset.origLabel || feedbackBtn.textContent;
+      feedbackBtn.dataset.origLabel = prev;
+      feedbackBtn.textContent = label;
+      setTimeout(() => { feedbackBtn.textContent = prev; }, 1600);
+    };
+
+    const isTouch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    if (isTouch && typeof File === 'function' && navigator.share && navigator.canShare) {
+      try {
+        const file = new File([blob], filename, { type: 'image/png' });
+        if (navigator.canShare({ files: [file] })) {
+          flashBtn('Opening share…');
+          navigator.share({ files: [file], title: 'Out of Context Quote' }).then(
+            () => flashBtn('Shared!'),
+            (err) => {
+              if (!err || err.name !== 'AbortError') {
+                triggerDownload(blob, filename);
+                flashBtn('Saved!');
+              }
+            }
+          );
+          return;
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    triggerDownload(blob, filename);
+    flashBtn('Saved ✓');
   }
 
   /* ---------- Chat Wrapped (6-slide tappable Story Mode) ---------- */
@@ -2255,10 +3275,27 @@
     const addSub = (t) => { const p = document.createElement('p'); p.className = 'w-sub'; p.textContent = t; wrappedSlide.appendChild(p); };
 
     if (idx === 0) {
-      // Slide 1: The Big Picture
+      // Slide 1: The Big Picture + Archetype
       addKicker('the big picture');
       addTitle(current.anon ? 'Your anonymized chat' : (current.name || 'This chat').replace(/\.txt$/i, ''));
       if (result.first && result.last) addSub(`from ${result.first} to ${result.last}`);
+
+      if (insights.archetype) {
+        const arch = document.createElement('div');
+        arch.className = 'w-archetype';
+        const ic = document.createElement('span');
+        ic.className = 'w-archetype-icon';
+        ic.textContent = insights.archetype.icon;
+        const body = document.createElement('div');
+        body.className = 'w-archetype-body';
+        const st = document.createElement('strong');
+        st.textContent = insights.archetype.title;
+        const sp = document.createElement('span');
+        sp.textContent = insights.archetype.tagline;
+        body.append(st, sp);
+        arch.append(ic, body);
+        wrappedSlide.appendChild(arch);
+      }
 
       const bub = document.createElement('div');
       bub.className = 'w-bubble';
@@ -2295,7 +3332,7 @@
       }
       wrappedSlide.appendChild(grid);
     } else if (idx === 1) {
-      // Slide 2: Your Rhythm
+      // Slide 2: Your Rhythm + Chaos Peak
       addKicker('your rhythm');
       const peakH = insights.peakHour ? formatHour(insights.peakHour.hour) : 'anytime';
       const owl = insights.peakHour && (insights.peakHour.hour >= 22 || insights.peakHour.hour <= 4);
@@ -2326,10 +3363,14 @@
         [numberFmt.format(activeDays), activeDays === 1 ? 'active day' : 'active days'],
         [DAY_SHORT[topDowIdx] + 's', 'chatty day of week'],
       ];
+      if (insights.chaosPeak) {
+        rhythmCards.push([`⚡ ${numberFmt.format(insights.chaosPeak.count)} in ${insights.chaosPeak.durationMin}m`, `chaos peak (${insights.chaosPeak.startTs})`]);
+      } else if (insights.longestStreak) {
+        rhythmCards.push([`×${numberFmt.format(insights.longestStreak.count)}`, `longest streak (${labelFor(insights.longestStreak.sender)})`]);
+      }
       if (insights.longestSilence) {
         rhythmCards.push([formatDuration(insights.longestSilence.ms), `longest silence (broken by ${labelFor(insights.longestSilence.breaker)})`]);
-      }
-      if (insights.longestStreak) {
+      } else if (insights.longestStreak && insights.chaosPeak) {
         rhythmCards.push([`×${numberFmt.format(insights.longestStreak.count)}`, `longest streak (${labelFor(insights.longestStreak.sender)})`]);
       }
       for (const [v, l] of rhythmCards) {
@@ -2344,7 +3385,7 @@
       }
       wrappedSlide.appendChild(grid);
     } else if (idx === 2) {
-      // Slide 3: Cast & Dynamics
+      // Slide 3: Cast & Dynamics (+ Power Duo)
       addKicker('the cast');
       const leader = result.senders[0];
       const leadPct = leader ? Math.round((leader.count / result.total) * 100) : 0;
@@ -2372,9 +3413,15 @@
 
       const dynGrid = document.createElement('div');
       dynGrid.className = 'w-grid';
+      if (result.senders.length >= 3 && insights.pingPong && insights.pingPong.pairs.length) {
+        const duo = insights.pingPong.pairs[0];
+        const c = document.createElement('div'); c.className = 'w-card';
+        const st = document.createElement('strong'); st.textContent = `🏓 ${labelFor(duo.a)} ↔ ${labelFor(duo.b)}`;
+        const sp = document.createElement('span'); sp.textContent = `power duo (${duo.pct}% of back-and-forths)`;
+        c.append(st, sp); dynGrid.appendChild(c);
+      }
       if (insights.fastestReplier) {
         const c = document.createElement('div'); c.className = 'w-card';
-        c.innerHTML = '';
         const st = document.createElement('strong'); st.textContent = `⚡ ${labelFor(insights.fastestReplier.sender)}`;
         const sp = document.createElement('span'); sp.textContent = `fastest draw (${formatDuration(insights.fastestReplier.medianMs)})`;
         c.append(st, sp); dynGrid.appendChild(c);
@@ -2391,7 +3438,7 @@
         const sp = document.createElement('span'); sp.textContent = `convo starter (×${insights.starter.count})`;
         c.append(st, sp); dynGrid.appendChild(c);
       }
-      if (insights.lastWord) {
+      if (insights.lastWord && dynGrid.children.length < 4) {
         const c = document.createElement('div'); c.className = 'w-card';
         const st = document.createElement('strong'); st.textContent = `🏁 ${labelFor(insights.lastWord.sender)}`;
         const sp = document.createElement('span'); sp.textContent = `always gets last word (×${insights.lastWord.count})`;
@@ -2399,7 +3446,7 @@
       }
       if (dynGrid.children.length) wrappedSlide.appendChild(dynGrid);
     } else if (idx === 3) {
-      // Slide 4: Chat Awards
+      // Slide 4: Chat Awards (now starring Comedian!)
       addKicker('chat awards');
       addTitle(insights.awards && insights.awards.length ? 'And the trophies go to…' : 'Just you in this one');
       if (insights.awards && insights.awards.length) {
@@ -2420,8 +3467,8 @@
         addSub('Drop a chat with two or more people to unlock head-to-head awards and reply speeds.');
       }
     } else if (idx === 4) {
-      // Slide 5: Words & Catchphrases
-      addKicker('words & catchphrases');
+      // Slide 5: Words, Catchphrases & Eras
+      addKicker('words, catchphrases & eras');
       addTitle(books.writable
         ? `Vocab big enough for ${books.writable.title}`
         : `${numberFmt.format(wAll.uniqueWords)} unique words`);
@@ -2431,7 +3478,7 @@
 
       const ul = document.createElement('ul');
       ul.className = 'w-list';
-      w.senders.slice(0, 5).forEach((s) => {
+      w.senders.slice(0, 4).forEach((s) => {
         const phrase = s.catchphrase ? s.catchphrase.word : s.signature;
         if (!phrase) return;
         const li = document.createElement('li');
@@ -2447,8 +3494,79 @@
         ul.appendChild(li);
       });
       if (ul.children.length) wrappedSlide.appendChild(ul);
+
+      const eras = erasFor(current.anon);
+      if (eras && (eras.extinct.length || eras.rising.length)) {
+        const grid = document.createElement('div');
+        grid.className = 'w-grid';
+        if (eras.extinct.length) {
+          const c = document.createElement('div'); c.className = 'w-card';
+          const st = document.createElement('strong'); st.textContent = `🦕 ${eras.extinct.slice(0, 2).map((x) => x.word).join(', ')}`;
+          const sp = document.createElement('span'); sp.textContent = `faded since ${eras.thenLabel}`;
+          c.append(st, sp); grid.appendChild(c);
+        }
+        if (eras.rising.length) {
+          const c = document.createElement('div'); c.className = 'w-card';
+          const st = document.createElement('strong'); st.textContent = `🌱 ${eras.rising.slice(0, 2).map((x) => x.word).join(', ')}`;
+          const sp = document.createElement('span'); sp.textContent = `rising in ${eras.nowLabel}`;
+          c.append(st, sp); grid.appendChild(c);
+        }
+        wrappedSlide.appendChild(grid);
+      }
+    } else if (idx === 5) {
+      // Slide 6: Lore & Time Capsule (Day 1, Group Lore, Comedian punchline)
+      addKicker('lore & time capsule');
+      const lore = insights.groupLore && insights.groupLore.changes ? insights.groupLore.changes : [];
+      addTitle(lore.length ? `${lore.length} group name${lore.length === 1 ? '' : 's'} & Day 1 lore` : 'How it all started');
+
+      const firstMsg = result.messages[0];
+      if (firstMsg) {
+        const q = document.createElement('div');
+        q.className = 'w-quote-card';
+        const sm = document.createElement('small');
+        sm.textContent = `🕰️ Day 1 · ${labelFor(firstMsg.sender)} · ${firstMsg.ts}`;
+        const p = document.createElement('p');
+        const body = firstMsg.media ? '📎 Media message' : textFor(firstMsg.text).replace(/\s+/g, ' ');
+        p.textContent = `“${body.slice(0, 140)}${body.length > 140 ? '…' : ''}”`;
+        q.append(sm, p);
+        wrappedSlide.appendChild(q);
+      }
+
+      if (insights.comedian && insights.comedian.punchlineIdx !== null) {
+        const pm = result.messages[insights.comedian.punchlineIdx];
+        if (pm && !pm.media) {
+          const q = document.createElement('div');
+          q.className = 'w-quote-card';
+          const sm = document.createElement('small');
+          sm.textContent = `🎭 Certified punchline · ${labelFor(pm.sender)} · ${pm.ts}`;
+          const p = document.createElement('p');
+          const body = textFor(pm.text).replace(/\s+/g, ' ');
+          p.textContent = `“${body.slice(0, 140)}${body.length > 140 ? '…' : ''}”`;
+          q.append(sm, p);
+          wrappedSlide.appendChild(q);
+        }
+      }
+
+      if (lore.length) {
+        const ul = document.createElement('ul');
+        ul.className = 'w-list';
+        for (const ch of lore.slice(0, 3)) {
+          const li = document.createElement('li');
+          li.className = 'w-row';
+          const icon = document.createElement('span');
+          icon.textContent = '📜';
+          const subj = document.createElement('strong');
+          subj.textContent = `“${textFor(ch.subject)}”`;
+          const sm = document.createElement('small');
+          const actorLabel = current.map.has(ch.actor) ? labelFor(ch.actor) : textFor(ch.actor);
+          sm.textContent = actorLabel;
+          li.append(icon, subj, sm);
+          ul.appendChild(li);
+        }
+        wrappedSlide.appendChild(ul);
+      }
     } else {
-      // Slide 6: Share the Receipt
+      // Slide 7: Share the Receipt
       addKicker('save & share');
       addTitle('Drop the receipt back in the chat');
       addSub(current.anon
@@ -2679,13 +3797,21 @@
     ctx.textAlign = 'left';
     drawDoubleTicks(ctx, bx + bw - 56, by + bh - 42, 3);
 
-    // Vibe line under bubble
+    // Archetype + Vibe line under bubble
+    let vibeY = 456;
+    if (current.insights.archetype) {
+      const arch = current.insights.archetype;
+      ctx.fillStyle = '#00a884';
+      ctx.font = '600 20px "Space Grotesk", system-ui, sans-serif';
+      ctx.fillText(`${arch.icon} ${arch.title}`.slice(0, 36), 60, vibeY);
+      vibeY += 34;
+    }
     const vibeStrings = Array.from(vibeList ? vibeList.children : []).map((el) => el.textContent);
     if (vibeStrings.length) {
       ctx.fillStyle = '#8696a0';
       ctx.font = '400 17px "Space Grotesk", system-ui, sans-serif';
       vibeStrings.slice(0, 3).forEach((vs, idx) => {
-        ctx.fillText(vs.slice(0, 44), 60, 462 + idx * 32);
+        ctx.fillText(vs.slice(0, 44), 60, vibeY + idx * 30);
       });
     }
 
@@ -2759,9 +3885,15 @@
     if (current.result.first && current.result.last) {
       ctx.fillText(`from ${current.result.first} to ${current.result.last}`, 92, 222);
     }
+    if (current.insights.archetype) {
+      const arch = current.insights.archetype;
+      ctx.fillStyle = '#00a884';
+      ctx.font = '600 26px "Space Grotesk", system-ui, sans-serif';
+      ctx.fillText(`${arch.icon} ${arch.title}`.slice(0, 38), 92, 264);
+    }
 
     // Hero bubble
-    const bx = 92, by = 285, bw = W - 184, bh = 320;
+    const bx = 92, by = 295, bw = W - 184, bh = 310;
     ctx.fillStyle = '#005c4b';
     roundRectPath(ctx, bx, by, bw, bh, 36);
     ctx.fill();

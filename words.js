@@ -293,5 +293,346 @@
     return { books, writable };
   }
 
-  return { tokenize, analyze, quizCandidates, BOOKS, bookReport, STOP_WORDS };
+  function escapeRegExp(s) {
+    return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  function buildNameLookup(opts) {
+    if (!opts || (!opts.senderMap && !opts.nameMap)) return null;
+    const map = new Map();
+    const add = (m) => {
+      if (!m) return;
+      for (const [name, label] of m) {
+        if (name.length >= 2 && !map.has(name.toLowerCase())) {
+          map.set(name.toLowerCase(), label);
+        }
+      }
+    };
+    add(opts.senderMap);
+    add(opts.nameMap);
+    return map.size ? map : null;
+  }
+
+  // "Chat Mad Libs" (Fill in the blank): picks real messages containing a distinctive
+  // non-stop word from the chat, masks that word with "_____", and offers 4 words from
+  // the chat's own vocabulary (1 right answer + 3 plausible distractors).
+  function madLibsCandidates(messages, opts) {
+    opts = opts || {};
+    const maxTotal = opts.limit || 120;
+    const urlOnlyRe = /^\s*(?:https?:\/\/|www\.)\S+\s*$/i;
+    const cleanText = (t) => String(t).replace(/\s+/g, ' ').trim();
+    const nameLabels = buildNameLookup(opts);
+    const analysis = analyze(messages, {
+      filterStopWords: true,
+      senderMap: opts.senderMap,
+      nameMap: opts.nameMap,
+    });
+
+    // Build pool of interesting candidate vocabulary words (skipping stop words, short words, and "Person X")
+    const vocab = [];
+    const seen = new Set();
+    const addVocab = (w) => {
+      if (!w || w.length < 4) return;
+      if (STOP_WORDS.has(w)) return;
+      if (/^Person [A-Z]+$/.test(w)) return;
+      if (seen.has(w)) return;
+      seen.add(w);
+      vocab.push(w);
+    };
+    for (const s of analysis.senders) {
+      if (s.catchphrase) addVocab(s.catchphrase.word);
+      for (const t of s.top) addVocab(t.word);
+    }
+    for (const t of analysis.top) addVocab(t.word);
+
+    // Also pull additional frequency-ranked words from the chat if vocab is still small
+    if (vocab.length < 24) {
+      const freq = new Map();
+      for (const m of messages) {
+        if (m.media || MEDIA_RE.test(m.text)) continue;
+        for (const raw of tokenize(m.text)) {
+          const t = nameLabels ? nameLabels.get(raw) || raw : raw;
+          if (t.length < 4 || STOP_WORDS.has(t) || /^Person [A-Z]+$/.test(t)) continue;
+          freq.set(t, (freq.get(t) || 0) + 1);
+        }
+      }
+      for (const [w] of Array.from(freq.entries()).sort((a, b) => b[1] - a[1])) {
+        addVocab(w);
+        if (vocab.length >= 60) break;
+      }
+    }
+
+    if (vocab.length < 4) return [];
+
+    const vocabSet = new Set(vocab);
+    const items = [];
+    const step = Math.max(1, Math.floor(messages.length / (maxTotal * 4)));
+
+    for (let i = 0; i < messages.length; i += step) {
+      const m = messages[i];
+      if (m.media || MEDIA_RE.test(m.text)) continue;
+      const txt = cleanText(m.text);
+      if (txt.length < 16 || txt.length > 180) continue;
+      if (urlOnlyRe.test(txt)) continue;
+      const tokens = tokenize(txt);
+      if (tokens.length < 4) continue;
+
+      // Pick the first vocab word occurring in this message (preferring catchphrases / longer words)
+      const tokenSet = new Set(tokens);
+      let chosen = null;
+      for (const raw of tokens) {
+        if (nameLabels && nameLabels.has(raw)) continue;
+        if (!vocabSet.has(raw)) continue;
+        if (!chosen || raw.length > chosen.length) chosen = raw;
+      }
+      if (!chosen) continue;
+
+      const re = new RegExp('(?<![\\p{L}\\p{N}_])' + escapeRegExp(chosen) + '(?![\\p{L}\\p{N}_])', 'iu');
+      if (!re.test(txt)) continue;
+
+      // Pick 3 distractors from vocab not already in this message
+      const distractors = [];
+      const startOff = (i * 7 + chosen.length) % vocab.length;
+      for (let k = 0; k < vocab.length && distractors.length < 3; k++) {
+        const cand = vocab[(startOff + k) % vocab.length];
+        if (cand !== chosen && !tokenSet.has(cand)) distractors.push(cand);
+      }
+      if (distractors.length < 3) continue;
+
+      items.push({
+        index: i,
+        sender: m.sender,
+        ts: m.ts,
+        text: txt,
+        answer: chosen,
+        distractors,
+      });
+      if (items.length >= maxTotal) break;
+    }
+    return items;
+  }
+
+  // "Guess the Era" mini-game:
+  //   - >= 2 distinct years  -> Guess the Year
+  //   - >= 3 distinct months -> Guess the Month
+  //   - otherwise            -> Guess the Act (Opening / Middle / Finale)
+  const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  function eraQuizCandidates(messages, timestamps, opts) {
+    opts = opts || {};
+    const maxTotal = opts.limit || 150;
+    const urlOnlyRe = /^\s*(?:https?:\/\/|www\.)\S+\s*$/i;
+    const cleanText = (t) => String(t).replace(/\s+/g, ' ').trim();
+    const tsArr = Array.isArray(timestamps) ? timestamps : [];
+
+    const years = new Set();
+    const months = new Set();
+    for (let i = 0; i < tsArr.length; i++) {
+      const p = tsArr[i];
+      if (!p) continue;
+      years.add(String(p.year));
+      months.add(p.year + '-' + String(p.month).padStart(2, '0'));
+    }
+
+    let mode = 'act';
+    let allChoices = ['Act I · Opening', 'Act II · Middle', 'Act III · Finale'];
+    if (years.size >= 2) {
+      mode = 'year';
+      allChoices = Array.from(years).sort();
+    } else if (months.size >= 3) {
+      mode = 'month';
+      allChoices = Array.from(months).sort().map((ym) => {
+        const [y, m] = ym.split('-').map(Number);
+        return MONTHS_SHORT[m - 1] + ' ' + y;
+      });
+    }
+
+    const bucketOf = (i) => {
+      if (mode === 'year') {
+        const p = tsArr[i];
+        return p ? String(p.year) : null;
+      }
+      if (mode === 'month') {
+        const p = tsArr[i];
+        return p ? MONTHS_SHORT[p.month - 1] + ' ' + p.year : null;
+      }
+      const third = messages.length / 3;
+      if (i < third) return 'Act I · Opening';
+      if (i < third * 2) return 'Act II · Middle';
+      return 'Act III · Finale';
+    };
+
+    const byBucket = new Map();
+    const collect = (minChars, minWords) => {
+      byBucket.clear();
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.media || MEDIA_RE.test(m.text)) continue;
+        const txt = cleanText(m.text);
+        if (txt.length < minChars || txt.length > 210) continue;
+        if (urlOnlyRe.test(txt)) continue;
+        if (tokenize(txt).length < minWords) continue;
+        const ans = bucketOf(i);
+        if (!ans) continue;
+        let arr = byBucket.get(ans);
+        if (!arr) { arr = []; byBucket.set(ans, arr); }
+        arr.push({ index: i, sender: m.sender, ts: m.ts, text: txt, answer: ans });
+      }
+    };
+
+    collect(14, 3);
+    if (byBucket.size < 2) collect(6, 2);
+    if (byBucket.size < 2) return { mode, choices: [], items: [] };
+
+    const perCap = Math.max(8, Math.ceil(maxTotal / byBucket.size));
+    const items = [];
+    for (const arr of byBucket.values()) {
+      if (arr.length <= perCap) {
+        for (const it of arr) items.push(it);
+      } else {
+        const step = arr.length / perCap;
+        for (let k = 0; k < perCap; k++) items.push(arr[Math.floor(k * step)]);
+      }
+    }
+
+    return { mode, choices: allChoices, items };
+  }
+
+  // "Chat Eras" (Then vs. Now): splits the chat into first half vs. second half
+  // and surfaces extinct words, rising slang, pace shift, and sender share shifts.
+  function chatEras(messages, timestamps, opts) {
+    opts = opts || {};
+    const msgs = messages || [];
+    if (msgs.length < 10) return null;
+
+    const mid = Math.floor(msgs.length / 2);
+    const tsArr = Array.isArray(timestamps) ? timestamps : [];
+    const nameLabels = buildNameLookup(opts);
+
+    const scanHalf = (start, end) => {
+      const words = new Map();
+      const senderCounts = new Map();
+      const dayKeys = new Set();
+      let totalWords = 0;
+      let textMsgs = 0;
+      let chars = 0;
+      let firstP = null;
+      let lastP = null;
+
+      for (let i = start; i < end; i++) {
+        const m = msgs[i];
+        senderCounts.set(m.sender, (senderCounts.get(m.sender) || 0) + 1);
+        const p = tsArr[i];
+        if (p) {
+          if (!firstP) firstP = p;
+          lastP = p;
+          dayKeys.add(p.dayKey);
+        }
+        if (m.media || MEDIA_RE.test(m.text)) continue;
+        textMsgs++;
+        chars += m.text.length;
+        for (const raw of tokenize(m.text)) {
+          const t = nameLabels ? nameLabels.get(raw) || raw : raw;
+          totalWords++;
+          if (t.length < 3 || STOP_WORDS.has(t) || /^Person [A-Z]+$/.test(t)) continue;
+          words.set(t, (words.get(t) || 0) + 1);
+        }
+      }
+
+      return {
+        count: end - start,
+        textMsgs,
+        totalWords,
+        avgChars: textMsgs ? Math.round(chars / textMsgs) : 0,
+        activeDays: dayKeys.size,
+        msgsPerDay: dayKeys.size ? Math.round(((end - start) / dayKeys.size) * 10) / 10 : null,
+        words,
+        senderCounts,
+        firstP,
+        lastP,
+      };
+    };
+
+    const thenH = scanHalf(0, mid);
+    const nowH = scanHalf(mid, msgs.length);
+
+    const labelSpan = (h, fallback) => {
+      if (!h.firstP || !h.lastP) return fallback;
+      if (h.firstP.year !== h.lastP.year) return `${h.firstP.year}–${h.lastP.year}`;
+      if (h.firstP.month !== h.lastP.month) {
+        return `${MONTHS_SHORT[h.firstP.month - 1]}–${MONTHS_SHORT[h.lastP.month - 1]} ${h.firstP.year}`;
+      }
+      if (h.firstP.day !== h.lastP.day) {
+        return `${h.firstP.day}–${h.lastP.day} ${MONTHS_SHORT[h.firstP.month - 1]}`;
+      }
+      return fallback;
+    };
+
+    const thenLabel = labelSpan(thenH, 'First half');
+    const nowLabel = labelSpan(nowH, 'Second half');
+    const sameLabel = thenLabel === nowLabel;
+
+    // Find extinct words (strong in Then, vanished/dropped in Now) and rising slang (strong in Now, absent/low in Then)
+    const minCount = msgs.length >= 60 ? 2 : 1;
+    const extinct = [];
+    const rising = [];
+
+    for (const [word, cThen] of thenH.words) {
+      if (cThen < minCount) continue;
+      const cNow = nowH.words.get(word) || 0;
+      const rThen = (cThen + 0.5) / (thenH.totalWords + 20);
+      const rNow = (cNow + 0.5) / (nowH.totalWords + 20);
+      if (rThen > rNow * 1.6 && cThen > cNow) {
+        const score = (rThen / rNow) * Math.log2(1 + cThen);
+        extinct.push({ word, thenCount: cThen, nowCount: cNow, score });
+      }
+    }
+    for (const [word, cNow] of nowH.words) {
+      if (cNow < minCount) continue;
+      const cThen = thenH.words.get(word) || 0;
+      const rThen = (cThen + 0.5) / (thenH.totalWords + 20);
+      const rNow = (cNow + 0.5) / (nowH.totalWords + 20);
+      if (rNow > rThen * 1.6 && cNow > cThen) {
+        const score = (rNow / rThen) * Math.log2(1 + cNow);
+        rising.push({ word, thenCount: cThen, nowCount: cNow, score });
+      }
+    }
+
+    extinct.sort((a, b) => b.score - a.score || b.thenCount - a.thenCount || a.word.localeCompare(b.word));
+    rising.sort((a, b) => b.score - a.score || b.nowCount - a.nowCount || a.word.localeCompare(b.word));
+
+    // Sender share shifts (percentage points)
+    const allSenders = new Set([...thenH.senderCounts.keys(), ...nowH.senderCounts.keys()]);
+    const senderShifts = [];
+    for (const sender of allSenders) {
+      const pctThen = Math.round(((thenH.senderCounts.get(sender) || 0) / Math.max(1, thenH.count)) * 100);
+      const pctNow = Math.round(((nowH.senderCounts.get(sender) || 0) / Math.max(1, nowH.count)) * 100);
+      senderShifts.push({ sender, pctThen, pctNow, delta: pctNow - pctThen });
+    }
+    senderShifts.sort((a, b) => b.delta - a.delta || a.sender.localeCompare(b.sender));
+
+    return {
+      thenLabel: sameLabel ? 'First half' : thenLabel,
+      nowLabel: sameLabel ? 'Second half' : nowLabel,
+      thenAvgChars: thenH.avgChars,
+      nowAvgChars: nowH.avgChars,
+      thenMsgsPerDay: thenH.msgsPerDay,
+      nowMsgsPerDay: nowH.msgsPerDay,
+      extinct: extinct.slice(0, 5),
+      rising: rising.slice(0, 5),
+      senderShifts,
+    };
+  }
+
+  return {
+    tokenize,
+    analyze,
+    quizCandidates,
+    madLibsCandidates,
+    eraQuizCandidates,
+    chatEras,
+    BOOKS,
+    bookReport,
+    STOP_WORDS,
+  };
 });

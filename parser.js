@@ -56,6 +56,9 @@
   // Placeholders WhatsApp writes instead of media / attachments.
   const MEDIA_RE = /<media omitted>|\(file attached\)|\b(?:image|video|audio|sticker|document|location|contact card|gif|voice message) omitted\b/i;
 
+  // System notices that iOS WhatsApp prefixes with "<Chat Name>: " (making them look like a real message).
+  const SYSTEM_TEXT_RE = /^(?:Messages(?: to this (?:chat|group))? and calls are (?:now secured with )?end-to-end encrypt(?:ed|ion)\.|Your security code with .+ changed\.|This (?:business uses a secure service from Meta|chat is with a business account)\b|.+ (?:created group|changed the subject(?: from ["“][^"”]+["”])? to) ["“][^"”]+["”]\.?$)/i;
+
   function parse(text) {
     const clean = String(text).replace(/^\uFEFF/, '').replace(INVISIBLE_RE, '');
     const lines = clean.split(/\r\n|\r|\n/);
@@ -67,9 +70,10 @@
       if (!raw.trim()) continue;
 
       const m = MESSAGE_RE.exec(raw);
-      if (m && m[2].indexOf('"') === -1) {
+      if (m && m[2].indexOf('"') === -1 && !SYSTEM_TEXT_RE.test(m[3].trim())) {
         // A sender name never contains a quote; system lines like
         // 'changed the subject to "a: b"' do — don't mistake them for messages.
+        // Also skip iOS-prefixed system notices ("<Chat Name>: Messages and calls are end-to-end encrypted...").
         current = {
           kind: 'message',
           ts: m[1].replace(/[[\]]/g, '').trim(),
@@ -392,7 +396,167 @@
     const weekday = new Date(ms).getUTCDay();
     const dayKey = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     const dayLabel = day + ' ' + MONTHS[month - 1] + ' ' + year;
-    return { hour, ms, weekday, dayKey, dayLabel };
+    return { year, month, day, hour, ms, weekday, dayKey, dayLabel };
+  }
+
+  function parseTimestamps(messages) {
+    const msgs = messages || [];
+    const order = detectDateOrder(msgs);
+    const out = new Array(msgs.length);
+    for (let i = 0; i < msgs.length; i++) {
+      out[i] = parseTs(msgs[i].ts, order);
+    }
+    return out;
+  }
+
+  // Extract group subject changes ("Alex changed the subject to ...") from system notes.
+  const SUBJECT_CHANGED_RE = /^(.+?)\s+changed the subject(?: from ["“]([^"”]+)["”])? to ["“]([^"”]+)["”]\.?$/i;
+  const GROUP_CREATED_RE = /^(.+?)\s+created group ["“]([^"”]+)["”]\.?$/i;
+
+  function extractGroupLore(entries) {
+    const changes = [];
+    const counts = new Map();
+    for (const e of entries || []) {
+      if (e.kind !== 'note') continue;
+      // Strip optional iOS "<Group Name>: " prefix on system notes
+      let text = e.text.trim();
+      const colonIdx = text.indexOf(': ');
+      if (colonIdx > 0 && colonIdx < 80) {
+        const after = text.slice(colonIdx + 2);
+        if (SUBJECT_CHANGED_RE.test(after) || GROUP_CREATED_RE.test(after)) {
+          text = after;
+        }
+      }
+      let m = SUBJECT_CHANGED_RE.exec(text);
+      if (m) {
+        const actor = m[1].trim();
+        const prevSubject = m[2] || null;
+        const subject = m[3];
+        changes.push({ ts: e.ts, actor, kind: 'renamed', subject, prevSubject, rawText: text });
+        counts.set(actor, (counts.get(actor) || 0) + 1);
+        continue;
+      }
+      m = GROUP_CREATED_RE.exec(text);
+      if (m) {
+        const actor = m[1].trim();
+        const subject = m[2];
+        changes.push({ ts: e.ts, actor, kind: 'created', subject, prevSubject: null, rawText: text });
+        counts.set(actor, (counts.get(actor) || 0) + 1);
+      }
+    }
+    let topRenamer = null;
+    for (const [actor, count] of counts) {
+      if (!topRenamer || count > topRenamer.count) topRenamer = { actor, count };
+    }
+    return { changes, topRenamer };
+  }
+
+  // Find messages sent on the same month & day in earlier years ("On this day").
+  function findOnThisDay(result, refDate) {
+    const dt = refDate instanceof Date ? refDate : new Date();
+    const refYear = dt.getFullYear();
+    const refMonth = dt.getMonth() + 1;
+    const refDay = dt.getDate();
+    const msgs = (result && result.messages) || [];
+    const parsed = parseTimestamps(msgs);
+    const byYear = new Map();
+    for (let i = 0; i < msgs.length; i++) {
+      const p = parsed[i];
+      if (!p) continue;
+      if (p.month === refMonth && p.day === refDay && p.year < refYear) {
+        let entry = byYear.get(p.year);
+        if (!entry) {
+          entry = { year: p.year, count: 0, firstIdx: i, lastIdx: i, ts: msgs[i].ts };
+          byYear.set(p.year, entry);
+        }
+        entry.count++;
+        entry.lastIdx = i;
+      }
+    }
+    const years = Array.from(byYear.values()).sort((a, b) => b.year - a.year);
+    const total = years.reduce((sum, y) => sum + y.count, 0);
+    return {
+      month: refMonth,
+      day: refDay,
+      label: refDay + ' ' + MONTHS[refMonth - 1],
+      total,
+      years,
+    };
+  }
+
+  // Stamp the whole chat with a cheeky personality archetype based on its stats.
+  function chatArchetype(result, ins) {
+    const total = (result && result.total) || 0;
+    const senders = (result && result.senders) || [];
+    if (!total) return { icon: '💬', title: 'Empty Room', tagline: 'No messages yet.' };
+    if (senders.length === 1) {
+      return { icon: '📓', title: 'Solo Brain-Dump Diary', tagline: 'Just you, your notes, and zero interruptions.' };
+    }
+
+    const topShare = senders[0].count / total;
+    const statsList = Object.values((ins && ins.senderStats) || {});
+    const totalTs = (ins && ins.totalParsedTs) || 0;
+    const nightTotal = statsList.reduce((s, x) => s + (x.nightMsgs || 0), 0);
+    const earlyTotal = statsList.reduce((s, x) => s + (x.earlyMsgs || 0), 0);
+    const laughTotal = statsList.reduce((s, x) => s + (x.laughs || 0), 0);
+    const questionTotal = statsList.reduce((s, x) => s + (x.questions || 0), 0);
+    const shoutTotal = statsList.reduce((s, x) => s + (x.shouts || 0), 0);
+    const shareTotal = statsList.reduce((s, x) => s + (x.shares || 0), 0);
+    const textTotal = Math.max(1, statsList.reduce((s, x) => s + (x.textCount || 0), 0));
+
+    const nightRate = totalTs ? nightTotal / totalTs : 0;
+    const earlyRate = totalTs ? earlyTotal / totalTs : 0;
+    const laughRate = laughTotal / textTotal;
+    const questionRate = questionTotal / textTotal;
+    const shoutRate = shoutTotal / textTotal;
+    const shareRate = shareTotal / total;
+    const avgChars = (ins && ins.avgChars) || 0;
+    const avgBurst = statsList.length
+      ? statsList.reduce((s, x) => s + (x.avgBurst || 0), 0) / statsList.length
+      : 1;
+    const fastestMs = ins && ins.fastestReplier ? ins.fastestReplier.medianMs : null;
+    const peakH = ins && ins.peakHour ? ins.peakHour.hour : null;
+    const silenceDays = ins && ins.longestSilence ? ins.longestSilence.days : 0;
+    const activeDays = (ins && ins.dayList && ins.dayList.length) || 1;
+    const msgsPerActiveDay = total / activeDays;
+
+    if (topShare >= 0.72 && total >= 10) {
+      return { icon: '🎙️', title: 'One-Sided Podcast', tagline: 'One host, one very patient live audience.' };
+    }
+    if (nightRate >= 0.25 || (peakH !== null && (peakH >= 23 || peakH <= 3))) {
+      return { icon: '🦉', title: '3 AM Oversharing Syndicate', tagline: 'Nothing good happens after midnight — except this chat.' };
+    }
+    if (shoutRate >= 0.14 && shoutTotal >= 3) {
+      return { icon: '📢', title: 'All-Caps Emergency Hotline', tagline: 'Volume permanently stuck at 11.' };
+    }
+    if (shareRate >= 0.28 && shareTotal >= 4) {
+      return { icon: '📎', title: 'Rapid-Fire Meme Pipeline', tagline: 'Half conversation, half curated internet archive.' };
+    }
+    if (laughRate >= 0.18 && laughTotal >= 3) {
+      return { icon: '🎭', title: 'Unofficial Comedy Club', tagline: 'High laugh-to-message ratio. Unhinged in the best way.' };
+    }
+    if (fastestMs !== null && fastestMs <= 120000 && avgBurst >= 1.8) {
+      return { icon: '⚡', title: 'Rapid-Fire Chaos Engine', tagline: 'Blink and you have 14 unread messages.' };
+    }
+    if (avgChars >= 85 && (fastestMs === null || fastestMs >= 15 * 60000)) {
+      return { icon: '🪶', title: 'Victorian Pen Pals', tagline: 'Thoughtful essays delivered at a dignified pace.' };
+    }
+    if (questionRate >= 0.26 && questionTotal >= 4) {
+      return { icon: '🕵️', title: '24/7 Investigation Bureau', tagline: 'So many questions, not nearly enough answers.' };
+    }
+    if (earlyRate >= 0.25 && earlyTotal >= 3) {
+      return { icon: '☕', title: 'Sunrise Coffee Club', tagline: 'Awake and texting before the rest of the world.' };
+    }
+    if (silenceDays >= 14 && msgsPerActiveDay < 8) {
+      return { icon: '☄️', title: "Halley's Comet Check-Ins", tagline: 'Rare appearances, always worth the wait.' };
+    }
+    if (senders.length >= 3) {
+      return { icon: '🎪', title: 'Group Chat Council', tagline: 'Zero consensus, maximum entertainment.' };
+    }
+    if (senders.length === 2 && topShare <= 0.58 && fastestMs !== null && fastestMs <= 5 * 60000) {
+      return { icon: '🏓', title: 'Telepathic Ping-Pong Duo', tagline: 'Balanced back-and-forth with razor-sharp replies.' };
+    }
+    return { icon: '💬', title: 'Classic Banter Vault', tagline: 'Steady rhythm, solid lore, zero dull moments.' };
   }
 
   // Compute fun chat insights in a single pass over result.messages:
@@ -411,7 +575,10 @@
     const laughs = new Map();
     const textStats = new Map(); // sender -> { count, chars }
     const replyGaps = new Map(); // sender -> number[] (ms)
+    const pairCounts = new Map(); // "a\0b" -> { a, b, count }
+    const partnerMaps = new Map(); // sender -> Map<other, count>
     const perSender = new Map();
+    const tsRecords = []; // { idx, ms, ts, sender } for sliding chaos peak
 
     const getS = (name) => {
       let s = perSender.get(name);
@@ -425,6 +592,9 @@
           starts: 0,
           lastWords: 0,
           laughs: 0,
+          laughsTriggered: 0,
+          bestPunchlineIdx: null,
+          bestPunchlineScore: -1,
           questions: 0,
           shouts: 0,
           links: 0,
@@ -439,10 +609,28 @@
       return s;
     };
 
+    const recordPair = (a, b) => {
+      if (!a || !b || a === b) return;
+      const key = a < b ? a + '\0' + b : b + '\0' + a;
+      let pair = pairCounts.get(key);
+      if (!pair) {
+        pair = a < b ? { a, b, count: 0 } : { a: b, b: a, count: 0 };
+        pairCounts.set(key, pair);
+      }
+      pair.count++;
+      let ma = partnerMaps.get(a);
+      if (!ma) { ma = new Map(); partnerMaps.set(a, ma); }
+      ma.set(b, (ma.get(b) || 0) + 1);
+      let mb = partnerMaps.get(b);
+      if (!mb) { mb = new Map(); partnerMaps.set(b, mb); }
+      mb.set(a, (mb.get(a) || 0) + 1);
+    };
+
     let totalParsedTs = 0;
     let prevMs = null;
     let prevSender = null;
     let prevIdx = -1;
+    let lastMsgSender = null;
     let streakSender = null;
     let streakCount = 0;
     let streakStart = 0;
@@ -451,13 +639,19 @@
     let longestSilence = null;
     let textChars = 0;
     let textMessages = 0;
+    let totalExchanges = 0;
+    const recentMsgs = []; // last 3 parsed entries: { idx, sender, ms, text, media }
 
     const GAP_MS = 6 * 3600 * 1000;
+    const PAIR_GAP_MS = 2 * 3600 * 1000;
+    const LAUGH_TRIGGER_MS = 10 * 60 * 1000;
 
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
       const st = getS(m.sender);
       st.count++;
+
+      const p = parseTs(m.ts, order);
 
       if (!m.media) {
         textMessages++;
@@ -472,6 +666,24 @@
         if (LAUGH_RE.test(m.text)) {
           laughs.set(m.sender, (laughs.get(m.sender) || 0) + 1);
           st.laughs++;
+          // Credit the most recent different sender's non-laugh setup message within the last 3 messages (10m window).
+          for (let r = recentMsgs.length - 1; r >= 0; r--) {
+            const prev = recentMsgs[r];
+            if (prev.sender === m.sender) continue;
+            if (!prev.media && LAUGH_RE.test(prev.text)) continue;
+            if (p && prev.ms !== null && (p.ms - prev.ms > LAUGH_TRIGGER_MS || p.ms < prev.ms)) continue;
+            const comic = getS(prev.sender);
+            comic.laughsTriggered++;
+            const txtLen = prev.media ? 0 : prev.text.trim().length;
+            const quality = prev.media
+              ? 1
+              : (txtLen >= 14 && txtLen <= 160 ? 3 : 2);
+            if (quality > comic.bestPunchlineScore || (quality === comic.bestPunchlineScore && comic.bestPunchlineIdx === null)) {
+              comic.bestPunchlineScore = quality;
+              comic.bestPunchlineIdx = prev.idx;
+            }
+            break;
+          }
         }
         if (m.text.indexOf('?') !== -1) st.questions++;
         if (isShouting(m.text)) st.shouts++;
@@ -494,13 +706,13 @@
         streakRange = { startIdx: streakStart, endIdx: i };
       }
 
-      const p = parseTs(m.ts, order);
       if (p) {
         totalParsedTs++;
         hours[p.hour]++;
         weekdays[p.weekday]++;
         const hs = hourSenders[p.hour];
         hs.set(m.sender, (hs.get(m.sender) || 0) + 1);
+        tsRecords.push({ idx: i, ms: p.ms, ts: m.ts, sender: m.sender });
 
         st.totalTs++;
         if (p.hour >= 0 && p.hour <= 4) st.nightMsgs++;
@@ -536,6 +748,10 @@
             let rg = replyGaps.get(m.sender);
             if (!rg) { rg = []; replyGaps.set(m.sender, rg); }
             rg.push(gap);
+            if (gap <= PAIR_GAP_MS) {
+              recordPair(prevSender, m.sender);
+              totalExchanges++;
+            }
           }
           if (gap >= 3600000 && (!longestSilence || gap > longestSilence.ms)) {
             longestSilence = {
@@ -554,6 +770,54 @@
         prevMs = p.ms;
         prevSender = m.sender;
         prevIdx = i;
+      } else if (lastMsgSender && lastMsgSender !== m.sender) {
+        recordPair(lastMsgSender, m.sender);
+        totalExchanges++;
+      }
+
+      lastMsgSender = m.sender;
+      recentMsgs.push({ idx: i, sender: m.sender, ms: p ? p.ms : null, text: m.text, media: m.media });
+      if (recentMsgs.length > 3) recentMsgs.shift();
+    }
+
+    // Sliding 5-minute chaos peak (wildest burst of messages in <= 5 minutes)
+    let chaosPeak = null;
+    if (tsRecords.length >= 4) {
+      const WINDOW_MS = 5 * 60 * 1000;
+      let left = 0;
+      let bestCount = 0;
+      let bestL = 0;
+      let bestR = 0;
+      for (let right = 0; right < tsRecords.length; right++) {
+        // Guard against out-of-order timestamps in weird exports
+        if (right > 0 && tsRecords[right].ms < tsRecords[right - 1].ms) {
+          left = right;
+        }
+        while (left < right && tsRecords[right].ms - tsRecords[left].ms > WINDOW_MS) {
+          left++;
+        }
+        const count = right - left + 1;
+        if (count > bestCount) {
+          bestCount = count;
+          bestL = left;
+          bestR = right;
+        }
+      }
+      if (bestCount >= 4) {
+        const spanMs = Math.max(60000, tsRecords[bestR].ms - tsRecords[bestL].ms);
+        const durationMin = Math.max(1, Math.round(spanMs / 60000));
+        const involved = new Set();
+        for (let k = bestL; k <= bestR; k++) involved.add(tsRecords[k].sender);
+        chaosPeak = {
+          count: bestCount,
+          startIdx: tsRecords[bestL].idx,
+          endIdx: tsRecords[bestR].idx,
+          startTs: tsRecords[bestL].ts,
+          endTs: tsRecords[bestR].ts,
+          durationMin,
+          msgsPerMin: Math.round((bestCount / Math.min(5, durationMin)) * 10) / 10,
+          senderCount: involved.size,
+        };
       }
     }
 
@@ -627,6 +891,39 @@
     let interrogator = null;
     let shouter = null;
     let dealer = null;
+    let comedian = null;
+
+    // Build Ping-Pong reply pair matrix (especially revealing in 3+ sender group chats)
+    const pairs = Array.from(pairCounts.values())
+      .sort((x, y) => y.count - x.count || x.a.localeCompare(y.a) || x.b.localeCompare(y.b))
+      .map((p) => ({
+        a: p.a,
+        b: p.b,
+        count: p.count,
+        pct: totalExchanges ? Math.round((p.count / totalExchanges) * 100) : 0,
+      }));
+    const pingPongBySender = {};
+    for (const [sender, pMap] of partnerMaps) {
+      let bestPartner = null;
+      let bestCount = 0;
+      let sum = 0;
+      for (const [other, c] of pMap) {
+        sum += c;
+        if (c > bestCount) { bestCount = c; bestPartner = other; }
+      }
+      if (bestPartner) {
+        pingPongBySender[sender] = {
+          partner: bestPartner,
+          count: bestCount,
+          pct: sum ? Math.round((bestCount / sum) * 100) : 0,
+        };
+      }
+    }
+    const pingPong = {
+      pairs: pairs.slice(0, 6),
+      totalExchanges,
+      bySender: pingPongBySender,
+    };
 
     for (const s of perSender.values()) {
       const rg = replyGaps.get(s.sender) || [];
@@ -647,6 +944,8 @@
         starts: s.starts,
         lastWords: s.lastWords,
         laughs: s.laughs,
+        laughsTriggered: s.laughsTriggered,
+        bestPunchlineIdx: s.bestPunchlineIdx,
         questions: s.questions,
         shouts: s.shouts,
         links: s.links,
@@ -660,6 +959,7 @@
         maxBurst: s.maxBurst,
         medianReplyMs: med,
         replyCount: rg.length,
+        bestie: pingPongBySender[s.sender] || null,
         badges: [],
       };
       senderStats[s.sender] = entry;
@@ -672,6 +972,9 @@
           if (!slowestReplier || med > slowestReplier.medianMs) {
             slowestReplier = { sender: s.sender, medianMs: med };
           }
+        }
+        if (s.laughsTriggered >= 1 && (!comedian || s.laughsTriggered > comedian.count)) {
+          comedian = { sender: s.sender, count: s.laughsTriggered, punchlineIdx: s.bestPunchlineIdx };
         }
         if (avgBurst >= 1.4 && s.bursts >= 2 && (!machineGun || avgBurst > machineGun.avgBurst)) {
           machineGun = { sender: s.sender, avgBurst };
@@ -708,6 +1011,7 @@
     };
 
     if (multiSender) {
+      if (comedian) addAward('comedian', '🎭', 'Comedian', comedian.sender, '×' + comedian.count + ' laughs triggered');
       if (fastestReplier) addAward('fastest', '⚡', 'Fastest draw', fastestReplier.sender, formatDurationShort(fastestReplier.medianMs) + ' median');
       if (slowestReplier) addAward('slowest', '🐢', 'Left on read', slowestReplier.sender, formatDurationShort(slowestReplier.medianMs) + ' median');
       if (starter) addAward('starter', '🚀', 'Convo starter', starter.sender, '×' + starter.count);
@@ -722,7 +1026,9 @@
       if (dealer) addAward('dealer', '📎', 'Link & media dealer', dealer.sender, dealer.count + ' shared');
     }
 
-    return {
+    const groupLore = extractGroupLore(result.entries);
+
+    const out = {
       hours,
       weekdays,
       hourSenders,
@@ -731,6 +1037,7 @@
       peakHour,
       peakDay,
       peakDayRange,
+      chaosPeak,
       longestStreak: multiSender && longestStreak && longestStreak.count >= 2 ? longestStreak : null,
       streakRange: multiSender && longestStreak && longestStreak.count >= 2 ? streakRange : null,
       longestSilence,
@@ -738,14 +1045,30 @@
       lastWord,
       novelist,
       laugher,
+      comedian,
       fastestReplier,
       slowestReplier,
+      pingPong,
+      groupLore,
       senderStats,
       awards,
       textChars,
       avgChars: textMessages ? Math.round(textChars / textMessages) : 0,
     };
+    out.archetype = chatArchetype(result, out);
+    return out;
   }
 
-  return { parse, senderMap, detectNames, replaceNames, toText, insights, formatDurationShort };
+  return {
+    parse,
+    senderMap,
+    detectNames,
+    replaceNames,
+    toText,
+    insights,
+    formatDurationShort,
+    parseTimestamps,
+    findOnThisDay,
+    chatArchetype,
+  };
 });

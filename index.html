@@ -57,6 +57,7 @@
           <button type="button" id="memoryBtn" class="pill-action" title="Jump to a random message in this chat">🎲 Memory</button>
           <span id="stripHint" class="strip-hint">hover to scrub · click to peek</span>
         </div>
+        <div id="wordDuelBar" class="word-duel-bar" hidden></div>
         <div class="strip-stage">
           <canvas id="strip" class="strip" role="img" aria-label="Activity chart for the chat"></canvas>
           <div id="stripTooltip" class="strip-tooltip" hidden></div>
@@ -76,6 +77,7 @@
           </span>
         </button>
         <p id="extras" class="extras"></p>
+        <button type="button" id="archetypeBadge" class="archetype-badge" hidden title="Open Chat Wrapped"></button>
         <div id="vibeList" class="vibe-list" hidden></div>
       </div>
 
@@ -83,6 +85,7 @@
         <div id="sendersBar" class="senders-bar" hidden>
           <span id="raceStatus" class="race-status">click a sender to see their stats</span>
           <div class="race-controls">
+            <button type="button" id="soundToggleBtn" class="pill-action" aria-pressed="false" title="Toggle Web Audio marimba synth for Chat Race & timeline scrub">🔇 Sound</button>
             <button type="button" id="raceBtn" class="pill-action" title="Watch message totals play out over time">▶ Play race</button>
             <button type="button" id="raceResetBtn" class="pill-action" hidden title="Return to final totals">Reset</button>
           </div>
@@ -90,15 +93,38 @@
         </div>
         <ul id="senders" class="senders"></ul>
 
+        <div id="groupExtras" class="group-extras" hidden>
+          <section id="pingPongCard" class="mini-card" hidden>
+            <div class="mini-card-head">
+              <h3 class="mini-card-title">🏓 Who talks to whom?</h3>
+              <span id="pingPongSub" class="mini-card-sub"></span>
+            </div>
+            <ul id="pingPongList" class="pingpong-list"></ul>
+          </section>
+
+          <section id="groupLoreCard" class="mini-card" hidden>
+            <div class="mini-card-head">
+              <h3 class="mini-card-title">📜 Group lore</h3>
+              <span id="groupLoreSub" class="mini-card-sub"></span>
+            </div>
+            <ol id="groupLoreList" class="lore-list"></ol>
+          </section>
+        </div>
+
         <section id="wordSection" class="word-section" hidden aria-live="polite">
           <p class="word-sub" id="wordSub"></p>
           <div id="wordStats" class="word-stats"></div>
 
           <div id="quizBox" class="quiz-box" hidden>
             <div class="quiz-head">
-              <h3 class="word-h3">who said it?</h3>
+              <div class="quiz-modes" role="tablist" aria-label="Mini-game mode">
+                <button type="button" id="quizModeWho" class="pill-btn active" role="tab" aria-selected="true">Who said it?</button>
+                <button type="button" id="quizModeMad" class="pill-btn" role="tab" aria-selected="false">Mad Libs</button>
+                <button type="button" id="quizModeEra" class="pill-btn" role="tab" aria-selected="false">Guess the Era</button>
+              </div>
               <span id="quizScore" class="quiz-score">0 / 0</span>
             </div>
+            <p id="quizPromptHint" class="quiz-prompt-hint" hidden></p>
             <div class="bubble bubble-in quiz-bubble">
               <p id="quizQuote" class="quiz-quote"></p>
               <span id="quizMeta" class="quiz-meta" hidden></span>
@@ -124,6 +150,14 @@
             </label>
           </div>
           <div id="wordCloud" class="word-cloud"></div>
+
+          <div id="erasBox" class="eras-box" hidden>
+            <div class="word-h3-row">
+              <h3 class="word-h3">chat eras · then vs. now</h3>
+              <span id="erasSpan" class="eras-span"></span>
+            </div>
+            <div id="erasGrid" class="eras-grid"></div>
+          </div>
 
           <h3 class="word-h3">the book bank</h3>
           <p class="word-sub" id="bookNote"></p>
@@ -170,13 +204,20 @@
           <span id="peekTitle" class="modal-title">Moment peek</span>
           <span id="peekSub" class="modal-sub"></span>
         </div>
-        <button type="button" id="peekCloseBtn" class="icon-close" aria-label="Close">×</button>
+        <div class="modal-head-actions">
+          <button type="button" id="peekReplayBtn" class="pill-action" title="Replay these messages with live typing bubbles">▶ Replay</button>
+          <button type="button" id="peekCloseBtn" class="icon-close" aria-label="Close">×</button>
+        </div>
       </div>
       <div id="peekMessages" class="peek-messages"></div>
       <div class="peek-foot">
-        <button type="button" id="peekPrevBtn" class="pill-action">← Earlier</button>
-        <button type="button" id="peekRandomBtn" class="pill-action">🎲 Random</button>
-        <button type="button" id="peekNextBtn" class="pill-action">Later →</button>
+        <div class="peek-foot-nav">
+          <button type="button" id="peekPrevBtn" class="pill-action">← Earlier</button>
+          <button type="button" id="peekDay1Btn" class="pill-action" title="Jump to message #1 (Day 1)">🕰️ Day 1</button>
+          <button type="button" id="peekRandomBtn" class="pill-action">🎲 Random</button>
+          <button type="button" id="peekNextBtn" class="pill-action">Later →</button>
+        </div>
+        <button type="button" id="peekQuoteBtn" class="pill-action accent-pill" title="Save the highlighted message as an Out of Context PNG quote card">📸 Quote card</button>
       </div>
     </div>
   </div>
@@ -187,7 +228,7 @@
       <div id="wrappedBars" class="wrapped-bars" aria-hidden="true"></div>
       <div class="wrapped-top">
         <span class="wrapped-brand"><span class="presence" aria-hidden="true"></span> chat wrapped</span>
-        <span id="wrappedCounter" class="wrapped-counter">1 / 6</span>
+        <span id="wrappedCounter" class="wrapped-counter">1 / 7</span>
         <button type="button" id="wrappedCloseBtn" class="icon-close" aria-label="Close Wrapped">×</button>
       </div>
       <div id="wrappedSlide" class="wrapped-slide"></div>

@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse, senderMap, detectNames, toText, insights } = require('../parser.js');
+const { parse, senderMap, detectNames, toText, insights, parseTimestamps, findOnThisDay, chatArchetype } = require('../parser.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -265,6 +265,87 @@ function roundTrip(f) {
   check('alex nightMsgs & sam earlyMsgs', [ins.senderStats.Alex.nightMsgs, ins.senderStats.Sam.earlyMsgs], [4, 2]);
   check('streakRange matches longestStreak', ins.streakRange, { startIdx: 2, endIdx: 4 });
   check('awards populated', ins.awards.length >= 4, true);
+}
+
+/* ---------- comedian, chaosPeak, pingPong, groupLore, archetype, onThisDay ---------- */
+
+{
+  const r = parse([
+    '12/05/2024, 18:42 - Alex created group "Trip plans"',
+    '12/05/2024, 18:43 - Alex: I just dropped my sandwich on my laptop',
+    '12/05/2024, 18:43 - Sam: HAHAHA NO WAY 😂',
+    '12/05/2024, 18:44 - Priya: lmao classic Alex 💀',
+    '12/05/2024, 18:44 - Alex: send help please',
+    '12/05/2024, 18:45 - Sam: on my way with napkins',
+    '12/05/2024, 18:46 - Alex: thank you legend',
+    '12/05/2024, 18:46 - Sam changed the subject to "Sandwich Incident 2024"',
+    '12/05/2024, 18:47 - Sam changed the subject to "Laptop Survivors"',
+    '12/05/2025, 10:00 - Sam: happy sandwich anniversary!',
+  ].join('\n'));
+  const ins = insights(r);
+
+  // Comedian: Alex triggered both Sam's and Priya's laughs
+  check('comedian is Alex', ins.comedian && ins.comedian.sender, 'Alex');
+  check('comedian count is 2', ins.comedian && ins.comedian.count, 2);
+  check('comedian punchline points to sandwich msg', ins.comedian && ins.comedian.punchlineIdx, 0);
+  check('comedian award added', ins.awards.some((a) => a.id === 'comedian' && a.sender === 'Alex'), true);
+
+  // Chaos peak: 6 messages between 18:43 and 18:46
+  check('chaosPeak count >= 6', ins.chaosPeak && ins.chaosPeak.count >= 6, true);
+  check('chaosPeak startIdx', ins.chaosPeak && ins.chaosPeak.startIdx, 0);
+
+  // Ping-pong: Alex <-> Sam has the most back-and-forths in 3-person group
+  check('pingPong top pair is Alex & Sam', ins.pingPong.pairs[0] && [ins.pingPong.pairs[0].a, ins.pingPong.pairs[0].b], ['Alex', 'Sam']);
+  check('pingPong Alex bestie is Sam', ins.senderStats.Alex.bestie && ins.senderStats.Alex.bestie.partner, 'Sam');
+
+  // Group lore: 3 subject changes, Sam is top renamer (x2)
+  check('groupLore count', ins.groupLore.changes.length, 3);
+  check('groupLore first created', [ins.groupLore.changes[0].kind, ins.groupLore.changes[0].subject], ['created', 'Trip plans']);
+  check('groupLore topRenamer', ins.groupLore.topRenamer, { actor: 'Sam', count: 2 });
+
+  // Archetype is populated
+  check('archetype has icon & title', Boolean(ins.archetype && ins.archetype.icon && ins.archetype.title), true);
+
+  // On This Day: ref date 12 May 2026 finds both 2025 and 2024
+  const otd = findOnThisDay(r, new Date(2026, 4, 12));
+  check('onThisDay total matches 2024 + 2025', otd.total, 7);
+  check('onThisDay years desc', otd.years.map((y) => y.year), [2025, 2024]);
+  const otd2025 = findOnThisDay(r, new Date(2025, 4, 12));
+  check('onThisDay skips same year', otd2025.years.map((y) => y.year), [2024]);
+
+  // parseTimestamps aligned with messages
+  const ts = parseTimestamps(r.messages);
+  check('parseTimestamps length', ts.length, r.messages.length);
+  check('parseTimestamps year 2024 & 2025', [ts[0].year, ts[ts.length - 1].year], [2024, 2025]);
+}
+
+// chatArchetype solo diary check
+{
+  const r = parse('12/05/2025, 10:00 - Alex: note to self\n');
+  const arch = chatArchetype(r, insights(r));
+  check('solo chat archetype is diary', arch.title, 'Solo Brain-Dump Diary');
+}
+
+// iOS chat-name-prefixed system notices (encryption banner + group subject changes)
+{
+  const raw = [
+    '[16/11/2026, 21:00:21] ula 🥰: \u200EMessages and calls are end-to-end encrypted. Only people in this chat can read, listen to, or share them.',
+    '[16/11/2026, 21:00:22] Trip Chat: Alex created group "Trip Chat"',
+    '[16/11/2026, 21:01:00] ula 🥰: heyyy!',
+    '[16/11/2026, 21:01:15] Alex: hey!!',
+    '[16/11/2026, 21:02:00] Trip Chat: Alex changed the subject to "Lisbon 2026"',
+  ].join('\n');
+  const r = parse(raw);
+  check('iOS prefixed encryption & subject notices skipped from messages', r.total, 2);
+  check('iOS prefixed notices counted as systemNotes', r.systemNotes, 3);
+  check('iOS Day 1 message is actual first text', r.messages[0].text, 'heyyy!');
+  const ins = insights(r);
+  check('iOS prefixed groupLore extracts clean actor & subjects', ins.groupLore.changes.map((c) => [c.actor, c.subject]), [
+    ['Alex', 'Trip Chat'],
+    ['Alex', 'Lisbon 2026'],
+  ]);
+  const rt = parse(toText(r));
+  check('iOS prefixed notices round-trip cleanly', [rt.total, rt.systemNotes], [2, 3]);
 }
 
 if (failures) {
