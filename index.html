@@ -4,7 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Message counter for WhatsApp exports</title>
-  <meta name="description" content="Drop a WhatsApp chat export (.txt) and count its messages right in your browser.">
+  <meta name="description" content="Drop a WhatsApp chat export (.txt or .zip) to count messages, explore rhythms, play word games, and export Chat Wrapped cards — 100% locally in your browser.">
+  <meta name="theme-color" content="#0b141a">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Message counter for WhatsApp exports">
+  <meta property="og:description" content="Drop a WhatsApp .txt or iPhone .zip export to explore rhythms, chat archetypes, party quizzes, and shareable Wrapped cards. Everything stays on your device.">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Message counter for WhatsApp exports">
+  <meta name="twitter:description" content="Count WhatsApp exports (.txt or .zip), unlock Chat Wrapped, and export shareable cards — 100% locally in your browser.">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230b141a'/%3E%3Cpath d='M16 18h32a6 6 0 0 1 6 6v16a6 6 0 0 1-6 6H28l-10 8v-8h-2a6 6 0 0 1-6-6V24a6 6 0 0 1 6-6z' fill='%23005c4b' stroke='%2300a884' stroke-width='2.5'/%3E%3Cpath d='M22 33l5 5 11-11M31 33l5 5 11-11' fill='none' stroke='%2353bdeb' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -21,13 +29,13 @@
     <section id="dropSection" class="drop-section">
       <button type="button" id="dropZone" class="drop-zone" aria-describedby="dropHint">
         <span class="drop-title">Drop your WhatsApp export here</span>
-        <span class="drop-sub">The .txt file from Export chat, or click to browse</span>
+        <span class="drop-sub">The .txt or .zip from Export chat, click to browse, or paste</span>
       </button>
       <div class="drop-meta">
-        <p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
+        <p id="dropHint" class="drop-hint">In WhatsApp: open the chat → Export chat → Without media (both Android .txt and iPhone .zip files work).</p>
         <button type="button" id="sampleBtn" class="text-btn">No export handy? Try a sample chat</button>
       </div>
-      <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
+      <input type="file" id="fileInput" accept=".txt,.zip,text/plain,application/zip,application/x-zip-compressed" hidden>
     </section>
 
     <section id="errorSection" class="error-section" hidden>
@@ -39,8 +47,11 @@
 
     <section id="resultSection" class="result-section" hidden aria-live="polite">
       <div class="meta">
-        <p class="file-name" id="fileName"></p>
-        <p class="file-sub" id="fileSub"></p>
+        <div class="meta-info">
+          <p class="file-name" id="fileName"></p>
+          <p class="file-sub" id="fileSub"></p>
+        </div>
+        <div id="yearFilter" class="year-filter" role="tablist" aria-label="Filter by year" hidden></div>
       </div>
 
       <div class="strip-wrap">
@@ -186,6 +197,7 @@
             <div id="cardMenu" class="card-menu" role="menu" hidden>
               <button type="button" id="cardWideBtn" class="card-menu-item" role="menuitem">16:9 Landscape card</button>
               <button type="button" id="cardStoryBtn" class="card-menu-item" role="menuitem">9:16 Story card</button>
+              <button type="button" id="cardCopyTextBtn" class="card-menu-item" role="menuitem">Copy WhatsApp summary</button>
             </div>
           </div>
           <button type="button" id="againBtn" class="again-btn">Count another file</button>
@@ -257,6 +269,13 @@
         <button type="button" id="wrappedPrevBtn" class="pill-action">← Back</button>
         <button type="button" id="wrappedNextBtn" class="pill-action accent-pill">Next →</button>
       </div>
+    </div>
+  </div>
+
+  <div id="dropOverlay" class="drop-overlay" hidden aria-hidden="true">
+    <div class="drop-overlay-card">
+      <span class="drop-overlay-title">Drop your WhatsApp export</span>
+      <span class="drop-overlay-sub">.txt or .zip — stays 100% on your device</span>
     </div>
   </div>
 

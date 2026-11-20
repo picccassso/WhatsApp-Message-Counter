@@ -2,7 +2,8 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse, senderMap, detectNames, toText, insights, parseTimestamps, findOnThisDay, chatArchetype } = require('../parser.js');
+const zlib = require('zlib');
+const { parse, senderMap, detectNames, toText, insights, parseTimestamps, findOnThisDay, chatArchetype, availableYears, filterByYear, extractChatFromZip } = require('../parser.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -350,8 +351,125 @@ function roundTrip(f) {
   check('iOS prefixed notices round-trip cleanly', [rt.total, rt.systemNotes], [2, 5]);
 }
 
-if (failures) {
-  console.error(`\n${failures} test(s) failed`);
-  process.exit(1);
+// International timestamps (no comma, dotted a.m./p.m.), edited tag stripping, and deleted message detection
+{
+  const raw = [
+    '12.05.24 08:15 - Alex: good morning! <This message was edited>',
+    '[12/05/2024 6:43:02 p.m.] Sam: hey there',
+    '13/05/2024, 9:05 a.m. - Alex: This message was deleted',
+    '13/05/2024, 9:06 a.m. - Sam: You deleted this message.',
+    '14/01/2025, 19:20 - Alex: happy 2025!',
+    '14/01/2025, 19:21 - Sam changed the subject to "2025 Squad"',
+    '14/01/2025, 19:22 - Sam: lets go!',
+  ].join('\n');
+  const r = parse(raw);
+  check('intl timestamps parsed all 6 messages', r.total, 6);
+  check('edited count', r.edited, 1);
+  check('edited tag stripped from text', r.messages[0].text, 'good morning!');
+  check('edited flag set', r.messages[0].edited, true);
+  check('deleted count', r.deleted, 2);
+  check('deleted flags set', [r.messages[2].deleted, r.messages[3].deleted], [true, true]);
+
+  const ts = parseTimestamps(r.messages);
+  check('dotted p.m. parsed as 18h', ts[1].hour, 18);
+  check('dotted a.m. parsed as 9h', ts[2].hour, 9);
+
+  // Round-trip preserves edited flag cleanly
+  const rt = parse(toText(r));
+  check('edited round-trip preserves text & edited flag', [rt.messages[0].text, rt.messages[0].edited, rt.edited], ['good morning!', true, 1]);
+
+  // availableYears & filterByYear
+  check('availableYears returns [2024, 2025]', availableYears(r), [2024, 2025]);
+  const r2024 = filterByYear(r, 2024);
+  const r2025 = filterByYear(r, 2025);
+  check('filterByYear 2024 total & deleted & edited', [r2024.total, r2024.deleted, r2024.edited], [4, 2, 1]);
+  check('filterByYear 2025 total & systemNotes', [r2025.total, r2025.systemNotes], [2, 1]);
+  check('filterByYear 2025 preserves groupLore', insights(r2025).groupLore.changes[0].subject, '2025 Squad');
+  check('filterByYear null returns full result', filterByYear(r, null).total, 6);
 }
-console.log('\nall tests passed');
+
+// Helper to build a minimal standard ZIP buffer (method 0 stored or method 8 deflated)
+function makeZip(entries) {
+  const localParts = [];
+  const cdParts = [];
+  let offset = 0;
+  for (const e of entries) {
+    const nameBuf = Buffer.from(e.name, 'utf8');
+    const rawBuf = Buffer.from(e.data, 'utf8');
+    const method = e.deflate ? 8 : 0;
+    const compBuf = e.deflate ? zlib.deflateRawSync(rawBuf) : rawBuf;
+
+    const local = Buffer.alloc(30 + nameBuf.length);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt32LE(compBuf.length, 18);
+    local.writeUInt32LE(rawBuf.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    nameBuf.copy(local, 30);
+    localParts.push(local, compBuf);
+
+    const cd = Buffer.alloc(46 + nameBuf.length);
+    cd.writeUInt32LE(0x02014b50, 0);
+    cd.writeUInt16LE(20, 4);
+    cd.writeUInt16LE(20, 6);
+    cd.writeUInt16LE(0, 8);
+    cd.writeUInt16LE(method, 10);
+    cd.writeUInt32LE(compBuf.length, 20);
+    cd.writeUInt32LE(rawBuf.length, 24);
+    cd.writeUInt16LE(nameBuf.length, 28);
+    cd.writeUInt32LE(offset, 42);
+    nameBuf.copy(cd, 46);
+    cdParts.push(cd);
+
+    offset += local.length + compBuf.length;
+  }
+  const cdBuf = Buffer.concat(cdParts);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(cdBuf.length, 12);
+  eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, cdBuf, eocd]);
+}
+
+(async () => {
+  const sampleText = '[12/05/2025, 18:42:11] Alex: hi from iOS zip!\n[12/05/2025, 18:43:00] Sam: works!\n';
+
+  // Deflated iOS-style zip with macOS resource fork decoy and media file
+  const zipDeflated = makeZip([
+    { name: '__MACOSX/._chat.txt', data: 'junk', deflate: false },
+    { name: '00000001-PHOTO.jpg', data: 'fakejpg', deflate: true },
+    { name: '_chat.txt', data: sampleText, deflate: true },
+  ]);
+  const res1 = await extractChatFromZip(zipDeflated);
+  check('extractChatFromZip deflated prefers _chat.txt', res1.name, '_chat.txt');
+  check('extractChatFromZip deflated content matches', res1.text, sampleText);
+  check('extractChatFromZip deflated parses messages', parse(res1.text).total, 2);
+
+  // Stored (uncompressed) zip with custom filename
+  const zipStored = makeZip([
+    { name: 'WhatsApp Chat with Priya.txt', data: sampleText, deflate: false },
+  ]);
+  const res2 = await extractChatFromZip(zipStored);
+  check('extractChatFromZip stored name', res2.name, 'WhatsApp Chat with Priya.txt');
+  check('extractChatFromZip stored content', res2.text, sampleText);
+
+  // Zip with no .txt throws friendly error
+  const zipNoTxt = makeZip([{ name: 'photo.jpg', data: '123', deflate: false }]);
+  let threwNoTxt = false;
+  try {
+    await extractChatFromZip(zipNoTxt);
+  } catch (err) {
+    threwNoTxt = /No \.txt/.test(err.message);
+  }
+  check('extractChatFromZip rejects zip without .txt', threwNoTxt, true);
+
+  if (failures) {
+    console.error(`\n${failures} test(s) failed`);
+    process.exit(1);
+  }
+  console.log('\nall tests passed');
+})();

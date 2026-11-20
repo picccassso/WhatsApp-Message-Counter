@@ -33,6 +33,9 @@
 
   // Same placeholder detection as parser.js — those messages are not prose.
   const MEDIA_RE = /<media omitted>|\(file attached\)|\b(?:image|video|audio|sticker|document|location|contact card|gif|voice message) omitted\b/i;
+  const DELETED_RE = /^(?:this message was deleted|you deleted this message)\.?$/i;
+  const isDeleted = (m) => Boolean(m.deleted || DELETED_RE.test(String(m.text || '').trim()));
+  const isNonProse = (m) => Boolean(m.media || MEDIA_RE.test(m.text) || isDeleted(m));
 
   // Word tokens: runs of Unicode letters/numbers, keeping inner apostrophes and
   // hyphens ("don't", "well-known"). Standalone pure numbers ("8", "2025") are
@@ -123,6 +126,7 @@
         mediaSkipped++;
         continue;
       }
+      if (isDeleted(m)) continue;
       messageCount++;
       const tokens = tokenize(m.text);
       totalWords += tokens.length;
@@ -228,7 +232,7 @@
       const bySender = new Map();
       for (let i = 0; i < messages.length; i++) {
         const m = messages[i];
-        if (m.media || MEDIA_RE.test(m.text)) continue;
+        if (isNonProse(m)) continue;
         const txt = cleanText(m.text);
         if (txt.length < minChars || txt.length > 220) continue;
         if (urlOnlyRe.test(txt)) continue;
@@ -349,7 +353,7 @@
     if (vocab.length < 24) {
       const freq = new Map();
       for (const m of messages) {
-        if (m.media || MEDIA_RE.test(m.text)) continue;
+        if (isNonProse(m)) continue;
         for (const raw of tokenize(m.text)) {
           const t = nameLabels ? nameLabels.get(raw) || raw : raw;
           if (t.length < 4 || STOP_WORDS.has(t) || /^Person [A-Z]+$/.test(t)) continue;
@@ -370,7 +374,7 @@
 
     for (let i = 0; i < messages.length; i += step) {
       const m = messages[i];
-      if (m.media || MEDIA_RE.test(m.text)) continue;
+      if (isNonProse(m)) continue;
       const txt = cleanText(m.text);
       if (txt.length < 16 || txt.length > 180) continue;
       if (urlOnlyRe.test(txt)) continue;
@@ -467,7 +471,7 @@
       byBucket.clear();
       for (let i = 0; i < messages.length; i++) {
         const m = messages[i];
-        if (m.media || MEDIA_RE.test(m.text)) continue;
+        if (isNonProse(m)) continue;
         const txt = cleanText(m.text);
         if (txt.length < minChars || txt.length > 210) continue;
         if (urlOnlyRe.test(txt)) continue;
@@ -528,7 +532,7 @@
           lastP = p;
           dayKeys.add(p.dayKey);
         }
-        if (m.media || MEDIA_RE.test(m.text)) continue;
+        if (isNonProse(m)) continue;
         textMsgs++;
         chars += m.text.length;
         for (const raw of tokenize(m.text)) {

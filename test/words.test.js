@@ -248,6 +248,23 @@ check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 23
   check('big per-sender top capped at 5', big.senders.every((s) => s.top.length <= 5), true);
 }
 
+// Deleted message stubs and <This message was edited> tags are excluded from vocabulary & quizzes
+{
+  const raw = [
+    '12/05/2025, 10:00 - Alex: espresso morning <This message was edited>',
+    '12/05/2025, 10:01 - Sam: This message was deleted',
+    '12/05/2025, 10:02 - Alex: You deleted this message',
+    '12/05/2025, 10:03 - Sam: matcha latte please',
+  ].join('\n');
+  const parsed = parse(raw);
+  const res = analyze(parsed.messages);
+  const words = res.top.map((t) => t.word);
+  check('deleted stub words excluded from analyze', words.includes('deleted'), false);
+  check('edited tag words excluded from analyze', words.includes('edited'), false);
+  check('real words kept in analyze', words.includes('espresso') && words.includes('matcha'), true);
+  check('messageCount excludes deleted stubs', res.messageCount, 2);
+}
+
 if (failures) {
   console.error(`\n${failures} test(s) failed`);
   process.exit(1);

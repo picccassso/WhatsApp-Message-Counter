@@ -14,6 +14,8 @@
   const typingStatus = $('typingStatus');
   const fileName = $('fileName');
   const fileSub = $('fileSub');
+  const yearFilter = $('yearFilter');
+  const dropOverlay = $('dropOverlay');
   const answerBtn = $('answerBtn');
   const bigNumber = $('bigNumber');
   const answerUnit = $('answerUnit');
@@ -56,6 +58,7 @@
   const cardMenu = $('cardMenu');
   const cardWideBtn = $('cardWideBtn');
   const cardStoryBtn = $('cardStoryBtn');
+  const cardCopyTextBtn = $('cardCopyTextBtn');
   const wordsToggle = $('wordsToggle');
   const wordSection = $('wordSection');
   const wordSub = $('wordSub');
@@ -291,6 +294,7 @@
       renderQuizCurrent();
     }
     if (peekModal && !peekModal.hidden) renderPeekWindow();
+    if (archModal && !archModal.hidden) openArchetypeModal();
     if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
     hideTooltip();
   });
@@ -304,7 +308,9 @@
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = (current.anon ? 'anonymized-chat' : (current.name || 'chat').replace(/\.txt$/i, '')) + '.txt';
+      const yearTag = current.selectedYear ? '-' + current.selectedYear : '';
+      const base = current.anon ? 'anonymized-chat' : (current.name || 'chat').replace(/\.(txt|zip)$/i, '');
+      a.download = base + yearTag + '.txt';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -341,6 +347,12 @@
     cardStoryBtn.addEventListener('click', () => {
       closeCardMenu();
       saveCard('story');
+    });
+  }
+  if (cardCopyTextBtn) {
+    cardCopyTextBtn.addEventListener('click', () => {
+      closeCardMenu();
+      copyWhatsAppSummary();
     });
   }
 
@@ -590,48 +602,98 @@
   });
 
   let dragDepth = 0;
+  function setDragVisual(active) {
+    if (active) {
+      if (dropSection.hidden) {
+        if (dropOverlay) dropOverlay.hidden = false;
+      } else {
+        dropZone.classList.add('dragging');
+      }
+    } else {
+      dropZone.classList.remove('dragging');
+      if (dropOverlay) dropOverlay.hidden = true;
+    }
+  }
   window.addEventListener('dragenter', (e) => {
     e.preventDefault();
     dragDepth++;
-    dropZone.classList.add('dragging');
+    setDragVisual(true);
   });
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('dragleave', (e) => {
     e.preventDefault();
     dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) dropZone.classList.remove('dragging');
+    if (dragDepth === 0) setDragVisual(false);
   });
   window.addEventListener('drop', (e) => {
     e.preventDefault();
     dragDepth = 0;
-    dropZone.classList.remove('dragging');
+    setDragVisual(false);
     const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if (file) handleFile(file);
   });
 
+  // Allow pasting a WhatsApp chat export directly (⌘V / Ctrl+V) when not typing in a field.
+  window.addEventListener('paste', (e) => {
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    const cd = e.clipboardData;
+    if (!cd) return;
+    if (cd.files && cd.files.length) {
+      e.preventDefault();
+      handleFile(cd.files[0]);
+      return;
+    }
+    const pasted = cd.getData('text/plain');
+    if (!pasted || pasted.length < 12) return;
+    const result = WhatsAppParser.parse(pasted);
+    if (result.total > 0) {
+      e.preventDefault();
+      render('Pasted chat.txt', new Blob([pasted]).size, result, pasted);
+    }
+  });
+
   async function handleFile(file) {
+    if (typingStatus) typingStatus.hidden = false;
     const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
     const isZip = head[0] === 0x50 && head[1] === 0x4b;
-    if (isZip || /\.zip$/i.test(file.name)) {
-      showError('That file is a .zip archive. When exporting in WhatsApp, pick "Without media" to get a plain .txt file you can drop here.');
-      return;
-    }
-    if (typingStatus) typingStatus.hidden = false;
     let text;
-    try {
-      text = await file.text();
-    } catch {
-      if (typingStatus) typingStatus.hidden = true;
-      showError('Could not read that file. Try again with the .txt file from Export chat.');
-      return;
+    let displayName = file.name;
+    let displaySize = file.size;
+
+    if (isZip || /\.zip$/i.test(file.name)) {
+      if (!WhatsAppParser.extractChatFromZip) {
+        if (typingStatus) typingStatus.hidden = true;
+        showError('Could not unpack that .zip archive. Try unzipping it first and dropping the .txt file.');
+        return;
+      }
+      try {
+        const extracted = await WhatsAppParser.extractChatFromZip(await file.arrayBuffer());
+        text = extracted.text;
+        displayName = /^_chat\.txt$/i.test(extracted.name) ? file.name : extracted.name;
+        displaySize = extracted.size;
+      } catch (err) {
+        if (typingStatus) typingStatus.hidden = true;
+        showError((err && err.message) || 'Could not read that .zip archive. Try unzipping it and dropping the .txt file.');
+        return;
+      }
+    } else {
+      try {
+        text = await file.text();
+      } catch {
+        if (typingStatus) typingStatus.hidden = true;
+        showError('Could not read that file. Try again with the .txt or .zip file from Export chat.');
+        return;
+      }
     }
+
     const result = WhatsAppParser.parse(text);
     if (!result.total) {
       if (typingStatus) typingStatus.hidden = true;
-      showError('No messages found in that file. WhatsApp exports have one message per line (like "12/05/2025, 18:42 - Alex: hi"). Make sure you exported as .txt with "Without media".');
+      showError('No messages found in that file. WhatsApp exports have one message per line (like "12/05/2025, 18:42 - Alex: hi").');
       return;
     }
-    render(file.name, file.size, result, text);
+    render(displayName, displaySize, result, text);
   }
 
   function showError(message) {
@@ -657,6 +719,10 @@
     wordsToggle.checked = false;
     wordSection.hidden = true;
     if (wordSearch) wordSearch.value = '';
+    if (yearFilter) {
+      yearFilter.hidden = true;
+      yearFilter.textContent = '';
+    }
     hideTooltip();
     dropZone.focus();
   }
@@ -724,6 +790,7 @@
           renderQuizCurrent();
         }
         if (peekModal && !peekModal.hidden) renderPeekWindow();
+        if (archModal && !archModal.hidden) openArchetypeModal();
         if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
       }
     });
@@ -759,9 +826,65 @@
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   }
 
-  /* ---------- main render ---------- */
+  /* ---------- main render & year switcher ---------- */
 
-  function render(name, size, result, rawText) {
+  function renderYearFilter() {
+    if (!yearFilter || !current) return;
+    const years = current.years || [];
+    if (years.length < 2) {
+      yearFilter.hidden = true;
+      yearFilter.textContent = '';
+      return;
+    }
+    yearFilter.hidden = false;
+    yearFilter.textContent = '';
+
+    const makeTab = (label, yearVal) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const active = current.selectedYear === yearVal;
+      btn.className = 'pill-btn' + (active ? ' active' : '');
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(active));
+      btn.textContent = label;
+      btn.addEventListener('click', () => {
+        if (!current || current.selectedYear === yearVal) return;
+        selectYear(yearVal);
+      });
+      return btn;
+    };
+
+    yearFilter.appendChild(makeTab('All time', null));
+    for (const y of years) {
+      yearFilter.appendChild(makeTab(String(y), y));
+    }
+  }
+
+  function selectYear(year) {
+    if (!current || !current.fullResult) return;
+    const sliced = year && WhatsAppParser.filterByYear
+      ? WhatsAppParser.filterByYear(current.fullResult, year)
+      : current.fullResult;
+    if (!sliced || !sliced.total) return;
+
+    const keepAnon = current.anon;
+    const keepWordsOpen = Boolean(wordsToggle && wordsToggle.checked);
+    const keepStripMode = current.stripMode || 'timeline';
+    render(current.name, current.size, sliced, current.rawText, {
+      fullResult: current.fullResult,
+      years: current.years,
+      selectedYear: year,
+      colors: current.colors,
+      map: current.map,
+      anon: keepAnon,
+      wordsOpen: keepWordsOpen,
+      stripMode: keepStripMode,
+      skipScroll: true,
+    });
+  }
+
+  function render(name, size, result, rawText, opts) {
+    opts = opts || {};
     cancelAnimationFrame(countRaf);
     stopLensAuto();
     stopRace(false);
@@ -770,26 +893,42 @@
     closeWrapped();
     closeCardMenu();
 
+    const fullResult = opts.fullResult || result;
+    const years = opts.years || (WhatsAppParser.availableYears ? WhatsAppParser.availableYears(fullResult) : []);
+    const selectedYear = opts.selectedYear || null;
+
     const insights = WhatsAppParser.insights
       ? WhatsAppParser.insights(result)
       : { hours: new Array(24).fill(0), weekdays: new Array(7).fill(0), dayList: [], hourSenders: [], totalParsedTs: 0, textChars: result.chars || 0, avgChars: 0, senderStats: {}, awards: [] };
     const timestamps = WhatsAppParser.parseTimestamps ? WhatsAppParser.parseTimestamps(result.messages) : [];
     const onThisDay = WhatsAppParser.findOnThisDay ? WhatsAppParser.findOnThisDay(result) : { total: 0, years: [] };
 
+    const colors = opts.colors ? new Map(opts.colors) : new Map();
+    if (!opts.colors) {
+      fullResult.senders.forEach((s, i) => colors.set(s.sender, PALETTE[i % PALETTE.length]));
+    }
+    const map = opts.map || WhatsAppParser.senderMap(fullResult);
+    const anon = Boolean(opts.anon);
+    const stripMode = opts.stripMode || 'timeline';
+
     current = {
       result,
+      fullResult,
+      years,
+      selectedYear,
+      size,
       insights,
       timestamps,
       onThisDay,
-      colors: new Map(),
-      map: WhatsAppParser.senderMap(result),
-      anon: false,
+      colors,
+      map,
+      anon,
       name,
       rawText,
       detected: null,
       wordsCache: {},
       erasCache: {},
-      stripMode: 'timeline',
+      stripMode,
       hoverIndex: null,
       highlightSender: null,
       openDossier: null,
@@ -805,17 +944,15 @@
       race: null,
     };
 
-    anonToggle.checked = false;
-    wordsToggle.checked = false;
-    wordSection.hidden = true;
+    anonToggle.checked = anon;
+    wordsToggle.checked = Boolean(opts.wordsOpen);
+    wordSection.hidden = !opts.wordsOpen;
     syncAnonUI();
     syncSoundBtn();
     if (wordFilterPill) wordFilterPill.hidden = true;
     if (wordSearch) wordSearch.value = '';
-    syncStripTabs('timeline');
+    syncStripTabs(stripMode);
     hideTooltip();
-
-    result.senders.forEach((s, i) => current.colors.set(s.sender, PALETTE[i % PALETTE.length]));
 
     dropSection.hidden = true;
     errorSection.hidden = true;
@@ -827,12 +964,18 @@
     sizeSpan.textContent = formatSize(size);
     fileName.appendChild(sizeSpan);
 
-    fileSub.textContent = result.first && result.last
+    const rangeText = result.first && result.last
       ? `from ${result.first} to ${result.last}`
       : '';
+    fileSub.textContent = selectedYear
+      ? `${selectedYear} · ${rangeText}`
+      : rangeText;
+    renderYearFilter();
 
     const parts = [];
     if (result.media) parts.push(`${numberFmt.format(result.media)} media message${result.media === 1 ? '' : 's'}`);
+    if (result.deleted) parts.push(`${numberFmt.format(result.deleted)} deleted`);
+    if (result.edited) parts.push(`${numberFmt.format(result.edited)} edited`);
     if (result.systemNotes) parts.push(`${numberFmt.format(result.systemNotes)} system note${result.systemNotes === 1 ? '' : 's'} skipped`);
     if (insights.avgChars) parts.push(`avg ${numberFmt.format(insights.avgChars)} chars/msg`);
     extras.textContent = parts.join(', ');
@@ -852,10 +995,17 @@
     renderGroupExtras();
     updateAnswerBubble(true);
 
+    if (opts.wordsOpen) {
+      renderWords();
+      ensureQuiz();
+    }
+
     drawStrip(1);
     if (!reduceMotion) animateStrip();
 
-    resultSection.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    if (!opts.skipScroll) {
+      resultSection.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+    }
   }
 
   /* ---------- answer bubble lenses (6 units) + receipts ---------- */
@@ -3487,12 +3637,12 @@
     }
 
     // Footer
-    const chatLabel = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.txt$/i, '');
+    const chatLabel = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.(txt|zip)$/i, '');
     ctx.fillStyle = '#8696a0';
     ctx.font = '400 20px "Space Grotesk", system-ui, sans-serif';
     ctx.fillText(`${chatLabel.slice(0, 36)} · whatsapp message counter`, 90, H - 72);
 
-    const base = current.anon ? 'anonymized-quote' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '') + '-quote';
+    const base = current.anon ? 'anonymized-quote' : (current.name || 'whatsapp-chat').replace(/\.(txt|zip)$/i, '') + '-quote';
     const rangeTag = isMulti ? `${indices[0] + 1}-${indices[indices.length - 1] + 1}` : `${indices[0] + 1}`;
     const filename = `${base}-${rangeTag}.png`;
     const dataUrl = c.toDataURL('image/png');
@@ -3592,8 +3742,9 @@
 
     if (idx === 0) {
       // Slide 1: The Big Picture + Archetype
-      addKicker('the big picture');
-      addTitle(current.anon ? 'Your anonymized chat' : (current.name || 'This chat').replace(/\.txt$/i, ''));
+      addKicker(current.selectedYear ? `the big picture · ${current.selectedYear}` : 'the big picture');
+      const baseTitle = current.anon ? 'Your anonymized chat' : (current.name || 'This chat').replace(/\.(txt|zip)$/i, '');
+      addTitle(current.selectedYear ? `${baseTitle} (${current.selectedYear})` : baseTitle);
       if (result.first && result.last) addSub(`from ${result.first} to ${result.last}`);
 
       if (insights.archetype) {
@@ -3912,6 +4063,105 @@
     }
   }
 
+  /* ---------- Copy WhatsApp-formatted text summary ---------- */
+
+  function buildWhatsAppSummary() {
+    if (!current) return '';
+    const { result, insights } = current;
+    const wAll = wordsFor(current.anon, false);
+    const baseName = current.anon
+      ? 'Anonymized chat'
+      : (current.name || 'WhatsApp chat').replace(/\.(txt|zip)$/i, '');
+    const title = current.selectedYear ? `${baseName} · ${current.selectedYear}` : baseName;
+
+    const lines = [];
+    lines.push(`💬 *${title}*`);
+    const span = result.first && result.last ? ` · ${result.first} → ${result.last}` : '';
+    lines.push(`*${numberFmt.format(result.total)} message${result.total === 1 ? '' : 's'}* · ${numberFmt.format(wAll.totalWords)} words${span}`);
+    if (insights.archetype) {
+      lines.push(`${insights.archetype.icon} Archetype: *${insights.archetype.title}*`);
+    }
+
+    if (result.senders.length >= 2) {
+      lines.push('');
+      lines.push('📊 *Leaderboard*');
+      result.senders.slice(0, 6).forEach((s, idx) => {
+        const pct = Math.round((s.count / result.total) * 100);
+        lines.push(`${idx + 1}. ${labelFor(s.sender)} — ${numberFmt.format(s.count)} (${pct}%)`);
+      });
+      if (result.senders.length > 6) {
+        lines.push(`…and ${result.senders.length - 6} more`);
+      }
+    }
+
+    const highlights = [];
+    if (insights.peakHour) {
+      highlights.push(`Peak hour: ${formatHour(insights.peakHour.hour)}`);
+    }
+    if (insights.peakDay) {
+      highlights.push(`Busiest day: ${insights.peakDay.label} (${numberFmt.format(insights.peakDay.count)} msgs)`);
+    }
+    if (insights.chaosPeak) {
+      highlights.push(`⚡ Chaos peak: ${numberFmt.format(insights.chaosPeak.count)} msgs in ${insights.chaosPeak.durationMin}m`);
+    }
+    if (insights.awards && insights.awards.length) {
+      for (const a of insights.awards.slice(0, 3)) {
+        highlights.push(`${a.icon} ${a.title}: ${labelFor(a.sender)} (${a.detail})`);
+      }
+    }
+    const books = WhatsAppWords.bookReport(wAll.uniqueWords);
+    if (books.writable) {
+      highlights.push(`📚 Vocabulary covers *${books.writable.title}* (${numberFmt.format(wAll.uniqueWords)} unique words)`);
+    }
+
+    if (highlights.length) {
+      lines.push('');
+      lines.push('🏆 *Highlights*');
+      for (const h of highlights) lines.push(`• ${h}`);
+    }
+
+    lines.push('');
+    lines.push('_Counted locally in browser · WhatsApp Message Counter_');
+    return lines.join('\n');
+  }
+
+  let copyResetTimer = null;
+  async function copyWhatsAppSummary() {
+    if (!current) return;
+    const text = buildWhatsAppSummary();
+    let ok = false;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        await navigator.clipboard.writeText(text);
+        ok = true;
+      } catch {
+        ok = false;
+      }
+    }
+    if (!ok) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        ok = document.execCommand('copy');
+      } catch {
+        ok = false;
+      }
+      ta.remove();
+    }
+    if (cardBtn) {
+      clearTimeout(copyResetTimer);
+      cardBtn.textContent = ok ? 'Copied! ✓' : 'Copy failed';
+      copyResetTimer = setTimeout(() => {
+        cardBtn.textContent = 'Save card ▾';
+      }, 1800);
+    }
+  }
+
   /* ---------- shareable PNG receipt cards (16:9 landscape + 9:16 story) ---------- */
 
   function roundRectPath(ctx, x, y, w, h, r) {
@@ -3975,8 +4225,9 @@
       return;
     }
 
-    const base = current.anon ? 'anonymized-chat' : (current.name || 'whatsapp-chat').replace(/\.txt$/i, '');
-    const filename = base + (isStory ? '-story.png' : '-card.png');
+    const yearTag = current.selectedYear ? '-' + current.selectedYear : '';
+    const base = current.anon ? 'anonymized-chat' : (current.name || 'whatsapp-chat').replace(/\.(txt|zip)$/i, '');
+    const filename = base + yearTag + (isStory ? '-story.png' : '-card.png');
 
     // Synchronous encoding keeps Safari / mobile user-gesture activation intact.
     const dataUrl = c.toDataURL('image/png');
@@ -4081,7 +4332,8 @@
     ctx.font = '500 20px "Space Grotesk", system-ui, sans-serif';
     ctx.fillText('message counter', 82, 79);
 
-    const titleText = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat');
+    const rawTitle = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat');
+    const titleText = current.selectedYear ? `${rawTitle} · ${current.selectedYear}` : rawTitle;
     ctx.fillStyle = '#8696a0';
     ctx.font = '400 18px "Space Grotesk", system-ui, sans-serif';
     ctx.textAlign = 'right';
@@ -4192,9 +4444,9 @@
 
     ctx.fillStyle = '#e9edef';
     ctx.font = '600 28px "Space Grotesk", system-ui, sans-serif';
-    ctx.fillText('chat wrapped', 128, 130);
+    ctx.fillText(current.selectedYear ? `chat wrapped · ${current.selectedYear}` : 'chat wrapped', 128, 130);
 
-    const titleText = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.txt$/i, '');
+    const titleText = current.anon ? 'Anonymized chat' : (current.name || 'WhatsApp chat').replace(/\.(txt|zip)$/i, '');
     ctx.fillStyle = '#8696a0';
     ctx.font = '400 24px "Space Grotesk", system-ui, sans-serif';
     ctx.fillText(titleText.slice(0, 42), 92, 184);

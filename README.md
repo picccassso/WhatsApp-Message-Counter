@@ -6,15 +6,15 @@ Drop a WhatsApp chat export onto the page to count its messages, see a per-sende
 
 Open `index.html` in any modern browser (double-click works directly). Then:
 
-- drag a `.txt` export onto the page, or click to browse, or
+- drag a `.txt` or `.zip` export onto the page, click to browse, or paste (`⌘V` / `Ctrl+V`) an export straight from your clipboard, or
 - open `index.html?sample` to try it with a bundled sample chat (`index.html?sample&words` opens with the word games turned on).
 
-### Getting the .txt from WhatsApp
+### Getting the export from WhatsApp
 
-- **Android:** open the chat → ⋮ → More → Export chat → **Without media**
-- **iPhone:** tap the chat title → scroll down → Export Chat → **Without media**
+- **Android:** open the chat → ⋮ → More → Export chat → **Without media** (gives a `.txt` file)
+- **iPhone:** tap the chat title → scroll down → Export Chat → **Without media** (gives a `.zip` containing `_chat.txt`)
 
-Choosing "Without media" gives you a plain `.txt` file. If you accidentally drop a `.zip` from "Include media", the page explains how to re-export as text.
+Both `.txt` and `.zip` files (even *Include media* archives) can be dropped directly onto the page — the `.txt` inside a `.zip` is unpacked right in your browser.
 
 ### Anonymizing and re-exporting
 
@@ -40,7 +40,8 @@ Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
 - **Moment Peek, Typing Replay, Day 1 & Out-of-Context Quote Cards:** click any tick on the timeline, any active day on the calendar, or **🎲 Memory** to pop open a WhatsApp bubble preview with **← Earlier**, **🕰️ Day 1**, **🎲 Random**, and **Later →** navigation. Hit **▶ Replay** to watch the exchange play back with animated `typing…` bubbles, or click one or multiple bubbles (or hit **Select all**) and click **📸 Quote card** to export the full untruncated message or multi-bubble exchange as a PNG receipt.
 - **Clickable vibe chips:** jump straight to **⚡ Chaos peak** (wildest 5-minute burst), **🎭 Comedian** (who triggers the most laughs from others, peeking straight at their punchline), **🎂 On this day** (same-date memories from past years), peak hour, busiest day, longest streak, longest silence broken, or fastest replier.
 - **Sender stats, Group Ping-Pong, Group Lore & Audio Chat Race:** click any sender row to expand their inline stats, catchphrase, laughs triggered, top reply buddy, and award badges (🎭 Comedian, ⚡ Fastest draw, 🐢 Left on read, 🚀 Convo starter, 🏁 Last word, 💥 Machine-gun, 🌙 Night owl, ❓ Interrogator, 📢 ALL CAPS, 📎 Link & media dealer). Group chats (3+ people) also reveal **🏓 Who talks to whom?** reply pairs and **📜 Group lore** (every group name change + top renamer). Flip **🔇/🔊 Sound** to hear a soft Web Audio pentatonic marimba synth during **▶ Play race** and timeline scrubbing.
-- **✨ Wrapped & Shareable Cards:** click **✨ Wrapped** (or the Archetype badge) for a 7-slide tappable recap including Archetype, Chaos Peak, Power Duo, Awards, Eras, and Lore & Time Capsule, and download either a **16:9 Landscape card** or a **9:16 Story card** PNG.
+- **Year / Timeframe switcher:** multi-year chats show an **All time / 2024 / 2025 / …** pill bar beside the date range so you can slice the entire view — counts, strip, vibes, archetype, Wrapped, word games, and share cards — down to a single year.
+- **✨ Wrapped, Shareable Cards & WhatsApp Summary:** click **✨ Wrapped** (or the Archetype badge) for a 7-slide tappable recap including Archetype, Chaos Peak, Power Duo, Awards, Eras, and Lore & Time Capsule. Under **Save card ▾**, download a **16:9 Landscape card** PNG, a **9:16 Story card** PNG, or click **Copy WhatsApp summary** to paste a formatted breakdown straight back into the chat.
 
 ### Word games 🎲
 
@@ -53,7 +54,7 @@ Flip the **Word games** switch on the results screen to open the vocabulary sect
 - **chat eras · then vs. now:** compares the first half vs. second half of the chat to surface **extinct words** (clickable), **rising slang** (clickable), pace & length shifts, and who got chattier over time.
 - **the book bank:** compares the chat's unique-word count against rough unique-word counts of five famous books (Green Eggs and Ham ≈ 50, The Cat in the Hat ≈ 230, The Hobbit ≈ 6,500, Harry Potter and the Philosopher's Stone ≈ 10,500, The Lord of the Rings ≈ 30,000) and shows the biggest book your chat's vocabulary covers.
 
-Media placeholders (`<Media omitted>`, `(file attached)`, ...) and pure numbers are skipped when counting words. Analysis runs once per file in your browser when you flip the switch, taking well under a second even on a 100k-message export.
+Media placeholders (`<Media omitted>`, `(file attached)`, ...), deleted message stubs (`This message was deleted`), `<This message was edited>` tags, and pure numbers are skipped when counting words. Analysis runs once per file in your browser when you flip the switch, taking well under a second even on a 100k-message export.
 
 ## What counts as a message
 
@@ -65,7 +66,7 @@ One line starting with a timestamp and a sender, for example:
 [2025-05-12, 18:42:11] Priya: hey
 ```
 
-Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h and 24h clocks, optional brackets and seconds, multi-line messages (continuation lines attach to the previous message), media placeholders, system notices (encryption messages and subject changes are tracked separately), and the invisible RTL/LTR marks WhatsApp adds.
+Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h (`AM`/`PM` and `a.m.`/`p.m.`) and 24h clocks, optional commas/brackets/seconds, multi-line messages (continuation lines attach to the previous message), `<This message was edited>` stripping, deleted message stubs, media placeholders, system notices (encryption messages and subject changes are tracked separately), and the invisible RTL/LTR marks WhatsApp adds.
 
 ## Files
 

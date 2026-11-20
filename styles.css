@@ -149,13 +149,77 @@ body {
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: none; }
 }
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem 1rem;
+  margin-bottom: 1.5rem;
+}
+.meta-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
 .file-name {
   margin: 0;
   font-weight: 500;
   overflow-wrap: anywhere;
 }
 .file-name .size { color: var(--muted); font-weight: 400; font-size: 0.85rem; margin-left: 0.5rem; }
-.file-sub { margin: 0.15rem 0 1.75rem; color: var(--muted); font-size: 0.85rem; }
+.file-sub { margin: 0.15rem 0 0; color: var(--muted); font-size: 0.85rem; }
+
+.year-filter {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  background: var(--panel);
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  padding: 0.18rem;
+  max-width: 100%;
+}
+.year-filter .pill-btn {
+  padding: 0.22rem 0.65rem;
+  font-size: 0.78rem;
+}
+
+/* global drag-and-drop overlay when replacing an already-open chat */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(11, 20, 26, 0.84);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  pointer-events: none;
+}
+.drop-overlay-card {
+  border: 2px dashed var(--accent);
+  background: rgba(17, 27, 33, 0.96);
+  border-radius: 22px;
+  padding: 2.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+.drop-overlay-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.drop-overlay-sub {
+  font-size: 0.9rem;
+  color: var(--accent);
+}
 
 /* the answer: an outgoing bubble holding the number (clickable to switch lenses) */
 .answer-pane { margin-top: 1.75rem; }
@@ -1852,10 +1916,19 @@ body {
   .meta {
     grid-area: meta;
     display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.35rem 1rem;
+    margin-bottom: 0;
+    min-width: 0;
+  }
+  .meta-info {
+    display: flex;
+    flex-direction: row;
     align-items: baseline;
     flex-wrap: wrap;
     gap: 0.25rem 1rem;
-    min-width: 0;
   }
   .file-sub { margin: 0; }
 

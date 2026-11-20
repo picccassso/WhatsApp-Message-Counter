@@ -43,9 +43,9 @@
 
   // Timestamp prefix shared by message and system lines:
   //   optional "[", date (d/m/y or m/d/y or y-m-d, separators / . -),
-  //   comma, time (h:mm[:ss] [AM/PM]), optional "]"
+  //   comma or space, time (h:mm[:ss] [AM/PM or a.m./p.m.]), optional "]"
   const TS =
-    '\\[?\\s*\\d{1,4}[/.-]\\d{1,2}[/.-]\\d{2,4},\\s*\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:AM|PM|am|pm)?\\s*\\]?';
+    '\\[?\\s*\\d{1,4}[/.-]\\d{1,2}[/.-]\\d{2,4}(?:,\\s*|\\s+)\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:AM|PM|am|pm|a\\.m\\.|p\\.m\\.|A\\.M\\.|P\\.M\\.)?\\s*\\]?';
 
   // A real message line: <timestamp> [-] Sender: text
   const MESSAGE_RE = new RegExp('^(' + TS + ')\\s*-?\\s*([^:\\n]{1,80}?):\\s?([\\s\\S]*)$');
@@ -55,6 +55,10 @@
 
   // Placeholders WhatsApp writes instead of media / attachments.
   const MEDIA_RE = /<media omitted>|\(file attached\)|\b(?:image|video|audio|sticker|document|location|contact card|gif|voice message) omitted\b/i;
+
+  // Suffix WhatsApp appends to edited messages, and placeholders for deleted messages.
+  const EDITED_RE = /\s*<This message was edited>\s*$/i;
+  const DELETED_RE = /^(?:this message was deleted|you deleted this message)\.?$/i;
 
   // System notices that iOS WhatsApp prefixes with "<Chat Name>: " (making them look like a real message).
   const SYSTEM_TEXT_RE = new RegExp(
@@ -82,11 +86,20 @@
     return SYSTEM_TEXT_RE.test(t);
   }
 
+  function cleanMessageFlags(entry) {
+    if (EDITED_RE.test(entry.text)) {
+      entry.text = entry.text.replace(EDITED_RE, '');
+      entry.edited = true;
+    }
+    entry.media = MEDIA_RE.test(entry.text);
+    entry.deleted = DELETED_RE.test(entry.text.trim());
+  }
+
   function parse(text) {
     const clean = String(text).replace(/^\uFEFF/, '').replace(INVISIBLE_RE, '');
     const lines = clean.split(/\r\n|\r|\n/);
 
-    const entries = []; // every timestamped line, in file order: { kind: 'message'|'note', ts, bracketed, sender?, text, media? }
+    const entries = []; // every timestamped line, in file order: { kind: 'message'|'note', ts, bracketed, sender?, text, media?, deleted?, edited? }
     let current = null; // last entry, so continuation lines can attach to it
 
     for (const raw of lines) {
@@ -103,8 +116,11 @@
           bracketed: m[1].charAt(0) === '[',
           sender: m[2].trim(),
           text: m[3],
-          media: MEDIA_RE.test(m[3]),
+          media: false,
+          deleted: false,
+          edited: false,
         };
+        cleanMessageFlags(current);
         entries.push(current);
         continue;
       }
@@ -123,7 +139,7 @@
 
       if (current) {
         current.text += '\n' + raw;
-        if (current.kind === 'message') current.media = MEDIA_RE.test(current.text);
+        if (current.kind === 'message') cleanMessageFlags(current);
       }
     }
 
@@ -132,6 +148,8 @@
 
     const bySender = new Map();
     let media = 0;
+    let deleted = 0;
+    let edited = 0;
     let chars = 0;
     for (const msg of messages) {
       const entry = bySender.get(msg.sender) || { sender: msg.sender, count: 0, chars: 0 };
@@ -139,6 +157,8 @@
       entry.chars += msg.text.length;
       bySender.set(msg.sender, entry);
       if (msg.media) media += 1;
+      if (msg.deleted) deleted += 1;
+      if (msg.edited) edited += 1;
       chars += msg.text.length;
     }
 
@@ -146,6 +166,8 @@
       total: messages.length,
       systemNotes: notes.length,
       media,
+      deleted,
+      edited,
       chars,
       first: messages.length ? messages[0].ts : null,
       last: messages.length ? messages[messages.length - 1].ts : null,
@@ -321,7 +343,10 @@
       const ts = e.bracketed ? '[' + e.ts + ']' : e.ts;
       if (e.kind === 'message') {
         const sender = map ? map.get(e.sender) || e.sender : e.sender;
-        const text = map ? replaceNames(e.text, map, detected) : e.text;
+        const baseText = map ? replaceNames(e.text, map, detected) : e.text;
+        const text = e.edited
+          ? (baseText ? baseText + ' <This message was edited>' : '<This message was edited>')
+          : baseText;
         lines.push(e.bracketed ? ts + ' ' + sender + ': ' + text : ts + ' - ' + sender + ': ' + text);
       } else {
         const text = map ? replaceNames(e.text, map, detected) : e.text;
@@ -332,7 +357,7 @@
   }
 
   // Fast date+time extraction for chat insights and the 24h activity strip.
-  const TS_PARTS_RE = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{2,4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/;
+  const TS_PARTS_RE = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{2,4})(?:,\s*|\s+)(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm|a\.m\.|p\.m\.|A\.M\.|P\.M\.)?$/;
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const LAUGH_RE = /\b(?:ha(?:ha)+|he(?:he)+|lol+|lmao+|rofl)\b|[😂🤣💀]/iu;
   const URL_RE = /(?:https?:\/\/|www\.)\S+/i;
@@ -409,7 +434,7 @@
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
     let hour = +m[4];
     const min = +m[5];
-    const ampm = m[6] ? m[6].toUpperCase() : null;
+    const ampm = m[6] ? m[6].replace(/\./g, '').toUpperCase() : null;
     if (ampm) {
       if (ampm === 'AM' && hour === 12) hour = 0;
       else if (ampm === 'PM' && hour < 12) hour += 12;
@@ -857,7 +882,7 @@
 
       const p = parseTs(m.ts, order);
 
-      if (!m.media) {
+      if (!m.media && !m.deleted) {
         textMessages++;
         textChars += m.text.length;
         st.textCount++;
@@ -874,6 +899,7 @@
           for (let r = recentMsgs.length - 1; r >= 0; r--) {
             const prev = recentMsgs[r];
             if (prev.sender === m.sender) continue;
+            if (prev.deleted) continue;
             if (!prev.media && LAUGH_RE.test(prev.text)) continue;
             if (p && prev.ms !== null && (p.ms - prev.ms > LAUGH_TRIGGER_MS || p.ms < prev.ms)) continue;
             const comic = getS(prev.sender);
@@ -892,7 +918,7 @@
         if (m.text.indexOf('?') !== -1) st.questions++;
         if (isShouting(m.text)) st.shouts++;
         if (URL_RE.test(m.text)) st.links++;
-      } else {
+      } else if (m.media) {
         st.mediaCount++;
       }
 
@@ -980,7 +1006,7 @@
       }
 
       lastMsgSender = m.sender;
-      recentMsgs.push({ idx: i, sender: m.sender, ms: p ? p.ms : null, text: m.text, media: m.media });
+      recentMsgs.push({ idx: i, sender: m.sender, ms: p ? p.ms : null, text: m.text, media: m.media, deleted: Boolean(m.deleted) });
       if (recentMsgs.length > 3) recentMsgs.shift();
     }
 
@@ -1263,6 +1289,192 @@
     return out;
   }
 
+  // Return sorted distinct calendar years present in a parsed chat's messages.
+  function availableYears(result) {
+    const msgs = (result && result.messages) || [];
+    const parsed = parseTimestamps(msgs);
+    const set = new Set();
+    for (const p of parsed) {
+      if (p && p.year) set.add(p.year);
+    }
+    return Array.from(set).sort((a, b) => a - b);
+  }
+
+  // Slice a parsed chat down to a single calendar year (or return result as-is if year is null/0).
+  function filterByYear(result, year) {
+    if (!result || !year) return result;
+    const targetYear = Number(year);
+    const order = detectDateOrder(result.messages || []);
+    const entries = [];
+    for (const e of result.entries || []) {
+      const p = parseTs(e.ts, order);
+      if (p && p.year === targetYear) entries.push(e);
+    }
+    const messages = entries.filter((e) => e.kind === 'message');
+    const notes = entries.filter((e) => e.kind === 'note');
+
+    const bySender = new Map();
+    let media = 0;
+    let deleted = 0;
+    let edited = 0;
+    let chars = 0;
+    for (const msg of messages) {
+      const entry = bySender.get(msg.sender) || { sender: msg.sender, count: 0, chars: 0 };
+      entry.count += 1;
+      entry.chars += msg.text.length;
+      bySender.set(msg.sender, entry);
+      if (msg.media) media += 1;
+      if (msg.deleted) deleted += 1;
+      if (msg.edited) edited += 1;
+      chars += msg.text.length;
+    }
+
+    return {
+      total: messages.length,
+      systemNotes: notes.length,
+      media,
+      deleted,
+      edited,
+      chars,
+      first: messages.length ? messages[0].ts : null,
+      last: messages.length ? messages[messages.length - 1].ts : null,
+      senders: Array.from(bySender.values()).sort((a, b) => b.count - a.count),
+      messages,
+      entries,
+    };
+  }
+
+  // Zero-dependency ZIP extractor for WhatsApp .zip exports (including iOS "_chat.txt" archives).
+  // Reads the Central Directory so data-descriptor ZIPs from iOS/macOS work reliably,
+  // and inflates method-8 deflate streams via Web Streams DecompressionStream('deflate-raw').
+  async function extractChatFromZip(input) {
+    const bytes = input instanceof Uint8Array
+      ? input
+      : new Uint8Array(input instanceof ArrayBuffer ? input : input.buffer);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const decoder = new TextDecoder('utf-8');
+
+    // Locate End of Central Directory (signature 0x06054b50), searching backwards from end.
+    const minOff = Math.max(0, bytes.length - 65557);
+    let eocd = -1;
+    for (let i = bytes.length - 22; i >= minOff; i--) {
+      if (view.getUint32(i, true) === 0x06054b50) {
+        const commentLen = view.getUint16(i + 20, true);
+        if (i + 22 + commentLen <= bytes.length) {
+          eocd = i;
+          break;
+        }
+      }
+    }
+    if (eocd < 0) {
+      throw new Error('Could not read that .zip archive.');
+    }
+
+    const totalEntries = view.getUint16(eocd + 10, true);
+    const cdSize = view.getUint32(eocd + 12, true);
+    const cdOffset = view.getUint32(eocd + 16, true);
+    if (cdOffset + cdSize > bytes.length) {
+      throw new Error('That .zip archive appears incomplete or uses an unsupported format.');
+    }
+
+    const candidates = [];
+    let pos = cdOffset;
+    for (let n = 0; n < totalEntries && pos + 46 <= cdOffset + cdSize; n++) {
+      if (view.getUint32(pos, true) !== 0x02014b50) break;
+      const flags = view.getUint16(pos + 8, true);
+      const method = view.getUint16(pos + 10, true);
+      const compSize = view.getUint32(pos + 20, true);
+      const uncompSize = view.getUint32(pos + 24, true);
+      const nameLen = view.getUint16(pos + 28, true);
+      const extraLen = view.getUint16(pos + 30, true);
+      const commentLen = view.getUint16(pos + 32, true);
+      const localOff = view.getUint32(pos + 42, true);
+      const rawName = bytes.subarray(pos + 46, pos + 46 + nameLen);
+      const fullName = decoder.decode(rawName);
+      pos += 46 + nameLen + extraLen + commentLen;
+
+      if (fullName.endsWith('/')) continue;
+      if (/(?:^|\/)(?:__MACOSX|\._)/i.test(fullName)) continue;
+      if (!/\.txt$/i.test(fullName)) continue;
+
+      const base = fullName.split('/').pop() || fullName;
+      let priority = 0;
+      if (/^_chat\.txt$/i.test(base)) priority = 3;
+      else if (/whatsapp chat/i.test(base)) priority = 2;
+      else priority = 1;
+
+      candidates.push({
+        name: base,
+        fullName,
+        flags,
+        method,
+        compSize,
+        uncompSize,
+        localOff,
+        priority,
+      });
+    }
+
+    if (!candidates.length) {
+      throw new Error('No .txt chat export was found inside that .zip archive.');
+    }
+
+    // Prefer _chat.txt, then "WhatsApp Chat*.txt", then largest .txt file.
+    candidates.sort((a, b) => b.priority - a.priority || b.uncompSize - a.uncompSize);
+    const chosen = candidates[0];
+
+    if (chosen.flags & 0x1) {
+      throw new Error('That .zip archive is password-protected.');
+    }
+    if (chosen.localOff + 30 > bytes.length || view.getUint32(chosen.localOff, true) !== 0x04034b50) {
+      throw new Error('Could not read the chat file inside that .zip archive.');
+    }
+    const localNameLen = view.getUint16(chosen.localOff + 26, true);
+    const localExtraLen = view.getUint16(chosen.localOff + 28, true);
+    const dataStart = chosen.localOff + 30 + localNameLen + localExtraLen;
+    const dataEnd = dataStart + chosen.compSize;
+    if (dataEnd > bytes.length) {
+      throw new Error('That .zip archive appears truncated.');
+    }
+
+    const payload = bytes.subarray(dataStart, dataEnd);
+    let outBytes;
+    if (chosen.method === 0) {
+      outBytes = payload;
+    } else if (chosen.method === 8) {
+      if (typeof DecompressionStream === 'undefined') {
+        throw new Error('Your browser does not support unpacking compressed .zip files — unzip it first and drop the .txt file.');
+      }
+      const ds = new DecompressionStream('deflate-raw');
+      const writer = ds.writable.getWriter();
+      const writePromise = writer.write(payload).then(() => writer.close());
+      const chunks = [];
+      const reader = ds.readable.getReader();
+      let totalLen = 0;
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        totalLen += value.byteLength;
+      }
+      await writePromise;
+      outBytes = new Uint8Array(totalLen);
+      let off = 0;
+      for (const c of chunks) {
+        outBytes.set(c, off);
+        off += c.byteLength;
+      }
+    } else {
+      throw new Error('Unsupported .zip compression method — unzip it first and drop the .txt file.');
+    }
+
+    return {
+      name: chosen.name,
+      text: decoder.decode(outBytes),
+      size: outBytes.byteLength,
+    };
+  }
+
   return {
     parse,
     senderMap,
@@ -1274,5 +1486,8 @@
     parseTimestamps,
     findOnThisDay,
     chatArchetype,
+    availableYears,
+    filterByYear,
+    extractChatFromZip,
   };
 });
