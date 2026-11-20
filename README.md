@@ -1,52 +1,62 @@
 # WhatsApp Message Counter
 
-Drop a WhatsApp chat export onto the page and get the message count instantly — plus a per-sender breakdown and a "rhythm strip" where every message is one tick. No upload, no server: everything runs locally in your browser.
+Drop a WhatsApp chat export onto the page to count its messages, see a per-sender breakdown, and explore a rhythm strip where every message is a tick. Everything runs locally in your browser.
 
 ## Use it
 
-Open `index.html` in any modern browser (double-click works, no build step), then:
+Open `index.html` in any modern browser (double-click works directly). Then:
 
 - drag a `.txt` export onto the page, or click to browse, or
-- open `index.html?sample` to try it with a bundled sample chat (`index.html?sample&words` lands with the word games already on).
+- open `index.html?sample` to try it with a bundled sample chat (`index.html?sample&words` opens with the word games turned on).
 
 ### Getting the .txt from WhatsApp
 
 - **Android:** open the chat → ⋮ → More → Export chat → **Without media**
 - **iPhone:** tap the chat title → scroll down → Export Chat → **Without media**
 
-"Without media" gives you a plain `.txt`. (A `.zip` from "Include media" isn't text — the app will tell you if you drop one.)
+Choosing "Without media" gives you a plain `.txt` file. If you accidentally drop a `.zip` from "Include media", the page explains how to re-export as text.
 
 ### Anonymizing and re-exporting
 
 On the results screen:
 
-- **Anonymize names** — flip the switch and every sender is shown as `Person A`, `Person B`, … (in order of who messaged first). Colors, counts and the strip are unchanged; flip it back to see real names again.
-- **Export .txt** — downloads the chat as a `.txt` in its original WhatsApp line layout, so you can drop it back into this app (or share it) and get the same counts. If the anonymize switch is on, the export is **completely anonymized**: sender fields become `Person A/B/…`, and names inside the texts are replaced too — see below. Anonymized downloads are always named `anonymized-chat.txt` — real exports are often called `WhatsApp Chat with Alex.txt`, and that file name would leak the name.
+- **Anonymize names:** flip the switch to replace every sender with `Person A`, `Person B`, and so on (in order of who messaged first). Colors, counts, and the strip stay the same, and you can flip it back anytime.
+- **Export anonymized .txt:** downloads the chat in its original WhatsApp line layout so you can re-open or share it with the same counts. Sender fields become `Person A/B/...`, and names inside message bodies are scrubbed too. Anonymized exports always save as `anonymized-chat.txt` so the original filename (often `WhatsApp Chat with Alex.txt`) stays private.
 
-Which names get scrubbed from message bodies and system lines (`Alex changed the subject…`):
+Which names get scrubbed from message bodies and system lines (`Alex changed the subject...`):
 
-- **The senders' own names**, in any capitalization (`alex`, `Alex`, `ALEX` all count) — whole-word only, so `Sam` never matches inside `Samantha`.
-- **Other people's names mentioned in the texts** — a built-in list of ~650 common first names and surnames (`names.js`) is detected automatically and labeled `Person C`, `Person D`, … in order of first appearance. Names that are also ordinary English words (`Will`, `Grace`, `Cook`, …) are only replaced when capitalized, so sentences like `will you come?` or `the cook is here` are left intact.
-- **Anything the list misses** — type extra names into the "also hide names…" box next to the switch (comma-separated; multi-word names like `Dr. House` work too).
+- **The senders' own names**, in any capitalization (`alex`, `Alex`, `ALEX` all match), whole-word only so `Sam` stays untouched inside `Samantha`.
+- **Other people's names mentioned in texts:** a built-in list of ~650 common first names and surnames (`names.js`) is detected automatically and labeled `Person C`, `Person D`, etc. in order of first appearance. Names that are also ordinary English words (`Will`, `Grace`, `Cook`, ...) are only replaced when capitalized, leaving sentences like `will you come?` or `the cook is here` intact.
+- **Anything the list misses:** type extra names into the "also hide..." box next to the switch (comma-separated; multi-word names like `Dr. House` work too).
 
-Anonymization is best-effort: it replaces whole-word matches of known names — nicknames, misspellings or names outside the list won't be caught, so check the export before sharing it.
+Anonymization is best-effort for whole-word matches of known names. Nicknames, typos, or names outside the list can slip through, so skim the exported `.txt` before sharing it.
 
-The word games follow the anonymize switch too: sender names become `Person A/B/…` as usual, and name words typed inside message texts (which show up in the most-used-words cloud and in signatures) are replaced by their labels there as well.
+Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
+
+### Interactive views, toys & Chat Wrapped ✨
+
+- **Answer bubble lenses:** click the green message-count bubble to cycle through **messages**, **words**, **characters**, **typing time**, **paperback pages**, and **scroll distance**.
+- **Rhythm strip (Timeline / 24h clock / Calendar):** scrub the timeline, inspect hourly activity, or switch to the GitHub-style **Calendar** heatmap. Type any word into **search a word...** to highlight when it peaked and see who said it most.
+- **Moment Peek & Random Memory (🎲):** click any tick on the timeline, any active day on the calendar, or **🎲 Memory** to pop open a 5-message WhatsApp bubble preview with Earlier, Random, and Later buttons.
+- **Clickable vibe chips:** jump straight to peak hour, busiest day, longest streak, longest silence broken, or fastest replier.
+- **Sender stats & Chat Race (▶):** click any sender row to expand their inline stats, catchphrase, and award badges (⚡ Fastest draw, 🐢 Left on read, 🚀 Convo starter, 🏁 Last word, 💥 Machine-gun, 🌙 Night owl, ❓ Interrogator, 📢 ALL CAPS, 📎 Link & media dealer). Hit **▶ Play race** to watch message totals play out over time.
+- **✨ Wrapped & Shareable Cards:** click **✨ Wrapped** for a 6-slide tappable recap of your chat, and download either a **16:9 Landscape card** or a **9:16 Story card** PNG.
 
 ### Word games 🎲
 
-Flip the **Word games** switch on the results screen for a separate, just-for-fun section (off by default):
+Flip the **Word games** switch on the results screen to open the vocabulary section:
 
-- **chat stats** — total words, different (unique) words, diversity (unique ÷ total), words per message, and the favourite emoji;
-- **diversity leaderboard** — every sender ranked by vocabulary size (🥇🥈🥉), each with their signature (most-used) word; follows the anonymize switch, so names become `Person A/B/…` there too;
-- **most used words** — the chat's top 12 words as a mini cloud, sized by frequency;
-- **the book bank** — the chat's unique-word count compared against rough unique-word counts of famous books (Green Eggs and Ham ≈ 50, The Cat in the Hat ≈ 230, The Hobbit ≈ 6,500, Harry Potter and the Philosopher's Stone ≈ 10,500, The Lord of the Rings ≈ 30,000): how much of each book's vocabulary the chat covers, and the biggest book this chat's word bank could have written.
+- **chat stats:** total words, unique words, vocabulary diversity (unique ÷ total), words per message, and top emojis.
+- **who said it?:** a mini-game that grabs a real message from the chat and asks you to guess who sent it, with streak tracking and a one-click *Peek in context* button.
+- **diversity & catchphrases:** ranks every sender by vocabulary size (🥇🥈🥉), showing their most distinctive catchphrase (words they use far more than everyone else), diversity %, and favourite emoji.
+- **most used words:** an interactive cloud of the chat's top 12 words (click any word to highlight it on the strip, with a checkbox to skip common glue words).
+- **the book bank:** compares the chat's unique-word count against rough unique-word counts of five famous books (Green Eggs and Ham ≈ 50, The Cat in the Hat ≈ 230, The Hobbit ≈ 6,500, Harry Potter and the Philosopher's Stone ≈ 10,500, The Lord of the Rings ≈ 30,000) and shows the biggest book your chat's vocabulary covers.
 
-Media placeholder messages (`<Media omitted>`, `(file attached)`, …) don't count as words, and pure numbers are ignored. The analysis runs once per file, locally in your browser, only when you flip the switch — a 100k-message export takes well under a second.
+Media placeholders (`<Media omitted>`, `(file attached)`, ...) and pure numbers are skipped when counting words. Analysis runs once per file in your browser when you flip the switch, taking well under a second even on a 100k-message export.
 
 ## What counts as a message
 
-One line that starts with a timestamp and a sender, e.g.
+One line starting with a timestamp and a sender, for example:
 
 ```
 12/05/2025, 18:42 - Alex: hi
@@ -54,19 +64,19 @@ One line that starts with a timestamp and a sender, e.g.
 [2025-05-12, 18:42:11] Priya: hey
 ```
 
-Handled: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h and 24h clocks, optional brackets and seconds, multi-line messages (continuations don't add to the count), media placeholders (`<Media omitted>`, `(file attached)`), system notices (encryption messages, subject changes — counted separately, never as messages), and the invisible RTL/LTR marks WhatsApp adds.
+Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`, 12h and 24h clocks, optional brackets and seconds, multi-line messages (continuation lines attach to the previous message), media placeholders, system notices (encryption messages and subject changes are tracked separately), and the invisible RTL/LTR marks WhatsApp adds.
 
 ## Files
 
-- `index.html`, `styles.css`, `app.js` — the app (vanilla, no dependencies)
-- `names.js` — built-in list of common first names/surnames used to scrub third-party names from texts when anonymizing
-- `parser.js` — the export parser plus `senderMap()` / `detectNames()` / `toText()` for anonymized re-exports; also loadable in node for tests
-- `words.js` — the word-games analysis (`tokenize()` / `analyze()` / `bookReport()`) behind the Word games switch; also loadable in node for tests
-- `test/parser.test.js` — run with `node test/parser.test.js`
-- `test/words.test.js` — run with `node test/words.test.js`
-- `test/fixtures/` — sample exports used by the tests
-- `test/preview-big.html` — dev preview that renders `fixtures/big_100k.txt`
+- `index.html`, `styles.css`, `app.js`: the vanilla web app
+- `names.js`: built-in list of common first names and surnames used when anonymizing message bodies
+- `parser.js`: export parser, insights calculator, and anonymized re-exporter (`parse`, `senderMap`, `detectNames`, `replaceNames`, `toText`, `insights`), also loadable in Node for tests
+- `words.js`: word-games analysis (`tokenize`, `analyze`, `quizCandidates`, `bookReport`), also loadable in Node for tests
+- `test/parser.test.js`: run with `node test/parser.test.js`
+- `test/words.test.js`: run with `node test/words.test.js`
+- `test/fixtures/`: sample exports used by the tests
+- `test/preview-big.html`: dev preview for `fixtures/big_100k.txt`
 
 ## Privacy
 
-The file is read with the browser's File API and never leaves your device — counting and exporting both happen locally. There is no network call except the Google Fonts stylesheet (the app works offline with system fonts).
+Files are read locally with the browser's File API, so counting, word games, card rendering, and anonymized exporting all happen on your device. The page only fetches the Space Grotesk stylesheet from Google Fonts (and falls back cleanly to system fonts offline).

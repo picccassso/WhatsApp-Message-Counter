@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const { parse, senderMap, detectNames } = require('../parser.js');
-const { tokenize, analyze, BOOKS, bookReport } = require('../words.js');
+const { tokenize, analyze, quizCandidates, BOOKS, bookReport } = require('../words.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -162,6 +162,27 @@ check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 23
   // fallback if a chat contains only stop words
   const allStop = analyze(parse('12/05/2025, 18:43 - Alex: the and to\n').messages, { filterStopWords: true });
   check('all-stop-word chat falls back cleanly', allStop.top.length, 3);
+}
+
+/* ---------- catchphrase (TF-IDF distinctiveness) & quizCandidates ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: espresso espresso espresso good yeah yeah',
+    '12/05/2025, 18:44 - Sam: matcha matcha matcha good yeah yeah',
+    '12/05/2025, 18:45 - Alex: seriously love espresso every morning',
+    '12/05/2025, 18:46 - Sam: iced matcha beats everything honestly',
+  ].join('\n'));
+  const w = analyze(r.messages, { filterStopWords: true });
+  const alex = w.senders.find((s) => s.sender === 'Alex');
+  const sam = w.senders.find((s) => s.sender === 'Sam');
+  check('alex catchphrase is distinctively espresso', alex.catchphrase && alex.catchphrase.word, 'espresso');
+  check('sam catchphrase is distinctively matcha', sam.catchphrase && sam.catchphrase.word, 'matcha');
+  check('catchphrase 100% share', [alex.catchphrase.share, sam.catchphrase.share], [100, 100]);
+
+  const qc = quizCandidates(r.messages);
+  check('quizCandidates returns both senders', new Set(qc.map((q) => q.sender)).size, 2);
+  check('quizCandidates skips media', quizCandidates(parse('12/05/2025, 18:43 - Alex: <Media omitted>\n12/05/2025, 18:44 - Sam: <Media omitted>\n').messages), []);
 }
 
 /* ---------- big fixture: runs fast and sane on 100k messages ---------- */

@@ -153,6 +153,39 @@
         let top = topEntries(s.counts, 5, 'word', skip);
         if (!top.length && skip) top = topEntries(s.counts, 5, 'word');
         const fav = topEntries(s.emoji, 1, 'emoji');
+
+        // Catchphrase: most distinctively used word compared to everyone else in the chat.
+        let catchphrase = null;
+        if (perSender.size >= 2 && s.total > 0) {
+          const minCount = s.total >= 60 ? 3 : s.total >= 20 ? 2 : 1;
+          const totalOthers = Math.max(0, totalWords - s.total);
+          let bestScore = 0;
+          let bestWord = null;
+          let bestCount = 0;
+          let bestShare = 0;
+          for (const [word, countSelf] of s.counts.entries()) {
+            if (countSelf < minCount) continue;
+            if (word.length < 2) continue;
+            if (STOP_WORDS.has(word)) continue;
+            if (nameLabels && /^Person [A-Z]+$/.test(word)) continue;
+            const totalW = overall.get(word) || countSelf;
+            const countOthers = Math.max(0, totalW - countSelf);
+            const pSelf = (countSelf + 0.5) / (s.total + 10);
+            const pOthers = (countOthers + 0.5) / (totalOthers + 10);
+            if (pSelf <= pOthers * 1.15) continue;
+            const score = (pSelf / pOthers) * Math.log2(1 + countSelf);
+            if (score > bestScore || (score === bestScore && bestWord && word.localeCompare(bestWord) < 0)) {
+              bestScore = score;
+              bestWord = word;
+              bestCount = countSelf;
+              bestShare = Math.round((countSelf / totalW) * 100);
+            }
+          }
+          if (bestWord) {
+            catchphrase = { word: bestWord, count: bestCount, share: bestShare };
+          }
+        }
+
         return {
           sender: s.sender,
           total: s.total,
@@ -160,6 +193,7 @@
           ratio: s.total ? s.counts.size / s.total : 0,
           top,
           signature: top.length ? top[0].word : null,
+          catchphrase,
           favEmoji: fav.length ? fav[0] : null,
         };
       })
@@ -179,6 +213,58 @@
       topEmoji: topEntries(emoji, 5, 'emoji'),
       senders,
     };
+  }
+
+  // Pick clean, non-trivial message candidates for the "Who said it?" mini-game.
+  // Excludes media placeholders, bare URLs, very short messages, and huge essays,
+  // and balances across senders. Returns [{ index, sender, ts, text }].
+  function quizCandidates(messages, opts) {
+    opts = opts || {};
+    const maxTotal = opts.limit || 240;
+    const urlOnlyRe = /^\s*(?:https?:\/\/|www\.)\S+\s*$/i;
+    const cleanText = (t) => String(t).replace(/\s+/g, ' ').trim();
+
+    const collect = (minChars, minWords) => {
+      const bySender = new Map();
+      for (let i = 0; i < messages.length; i++) {
+        const m = messages[i];
+        if (m.media || MEDIA_RE.test(m.text)) continue;
+        const txt = cleanText(m.text);
+        if (txt.length < minChars || txt.length > 220) continue;
+        if (urlOnlyRe.test(txt)) continue;
+        const words = tokenize(txt);
+        if (words.length < minWords) continue;
+        let arr = bySender.get(m.sender);
+        if (!arr) { arr = []; bySender.set(m.sender, arr); }
+        arr.push({ index: i, sender: m.sender, ts: m.ts, text: txt });
+      }
+      return bySender;
+    };
+
+    let bySender = collect(16, 3);
+    let total = 0;
+    for (const arr of bySender.values()) total += arr.length;
+    if (total < 6 || bySender.size < 2) {
+      bySender = collect(8, 2);
+    }
+
+    const senders = Array.from(bySender.keys());
+    if (senders.length < 2) return [];
+
+    // Sample evenly across senders so one hyper-active sender doesn't dominate.
+    const perCap = Math.max(8, Math.ceil(maxTotal / senders.length));
+    const pool = [];
+    for (const arr of bySender.values()) {
+      if (arr.length <= perCap) {
+        for (const item of arr) pool.push(item);
+      } else {
+        const step = arr.length / perCap;
+        for (let k = 0; k < perCap; k++) {
+          pool.push(arr[Math.floor(k * step)]);
+        }
+      }
+    }
+    return pool;
   }
 
   // Rough unique-word counts of famous books, ascending. These are widely cited
@@ -207,5 +293,5 @@
     return { books, writable };
   }
 
-  return { tokenize, analyze, BOOKS, bookReport, STOP_WORDS };
+  return { tokenize, analyze, quizCandidates, BOOKS, bookReport, STOP_WORDS };
 });

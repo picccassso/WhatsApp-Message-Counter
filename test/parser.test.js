@@ -234,6 +234,37 @@ function roundTrip(f) {
   const ins = insights(r);
   check('single-sender streak null', ins.longestStreak, null);
   check('single-sender starter null', ins.starter, null);
+  check('single-sender lastWord null', ins.lastWord, null);
+  check('single-sender awards empty', ins.awards, []);
+}
+
+/* ---------- extended insights (reply speed, silence, last word, calendar, dossier badges) ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 01:10 - Alex: ARE YOU AWAKE???',
+    '12/05/2025, 01:11 - Sam: yes! check https://example.com',
+    '12/05/2025, 01:12 - Alex: WAIT WHAT?!',
+    '12/05/2025, 01:12 - Alex: omg',
+    '12/05/2025, 01:13 - Alex: tell me more?',
+    '12/05/2025, 01:25 - Sam: <Media omitted>',
+    '15/05/2025, 06:30 - Sam: morning after three days',
+    '15/05/2025, 06:32 - Alex: morning!',
+    '15/05/2025, 07:00 - Sam: coffee?',
+  ].join('\n'));
+  const ins = insights(r);
+  check('dayList chronological', ins.dayList.map((d) => d.dayKey), ['2025-05-12', '2025-05-15']);
+  check('weekdays sum matches parsed timestamps', ins.weekdays.reduce((a, b) => a + b, 0), 9);
+  check('longest silence breaker is Sam', ins.longestSilence.breaker, 'Sam');
+  check('longest silence >= 3 days', ins.longestSilence.days >= 3, true);
+  check('lastWord before 6h gap is Sam', ins.lastWord, { sender: 'Sam', count: 1 });
+  check('fastest replier is Alex', ins.fastestReplier && ins.fastestReplier.sender, 'Alex');
+  check('slowest replier is Sam', ins.slowestReplier && ins.slowestReplier.sender, 'Sam');
+  check('alex questions & shouts tracked', [ins.senderStats.Alex.questions, ins.senderStats.Alex.shouts], [3, 2]);
+  check('sam links & media tracked', [ins.senderStats.Sam.links, ins.senderStats.Sam.mediaCount], [1, 1]);
+  check('alex nightMsgs & sam earlyMsgs', [ins.senderStats.Alex.nightMsgs, ins.senderStats.Sam.earlyMsgs], [4, 2]);
+  check('streakRange matches longestStreak', ins.streakRange, { startIdx: 2, endIdx: 4 });
+  check('awards populated', ins.awards.length >= 4, true);
 }
 
 if (failures) {

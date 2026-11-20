@@ -308,6 +308,36 @@
   const TS_PARTS_RE = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{2,4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/;
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const LAUGH_RE = /\b(?:ha(?:ha)+|he(?:he)+|lol+|lmao+|rofl)\b|[😂🤣💀]/iu;
+  const URL_RE = /(?:https?:\/\/|www\.)\S+/i;
+  const UPPER_RE = /\p{Lu}/gu;
+  const LETTER_RE = /\p{L}/gu;
+
+  function isShouting(text) {
+    if (!text) return false;
+    if (/!{3,}/.test(text)) return true;
+    const uppers = text.match(UPPER_RE);
+    if (!uppers || uppers.length < 4) return false;
+    const letters = text.match(LETTER_RE);
+    return Boolean(letters && letters.length >= 4 && uppers.length / letters.length >= 0.7);
+  }
+
+  function median(nums) {
+    if (!nums || !nums.length) return null;
+    const sorted = nums.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  function formatDurationShort(ms) {
+    if (ms == null) return '';
+    if (ms < 60000) return '<1m';
+    const mins = Math.round(ms / 60000);
+    if (mins < 60) return mins + 'm';
+    const hrs = ms / 3600000;
+    if (hrs < 24) return (hrs < 10 ? hrs.toFixed(1).replace(/\.0$/, '') : Math.round(hrs)) + 'h';
+    const days = Math.round(hrs / 24);
+    return days + (days === 1 ? ' day' : ' days');
+  }
 
   // Determine whether non-ISO numeric dates are DD/MM or MM/DD across the chat.
   function detectDateOrder(messages) {
@@ -359,29 +389,66 @@
     }
     if (hour < 0 || hour > 23 || min < 0 || min > 59) return null;
     const ms = Date.UTC(year, month - 1, day, hour, min);
+    const weekday = new Date(ms).getUTCDay();
     const dayKey = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     const dayLabel = day + ' ' + MONTHS[month - 1] + ' ' + year;
-    return { hour, ms, dayKey, dayLabel };
+    return { hour, ms, weekday, dayKey, dayLabel };
   }
 
   // Compute fun chat insights in a single pass over result.messages:
-  // 24h activity, peak hour, busiest day, longest monologue streak,
-  // conversation starter (after >= 6h silence), novelist (avg chars), and laugher.
+  // 24h activity, daily calendar, weekdays, peak hour, busiest day, longest monologue streak,
+  // conversation starter / last word (6h silence), reply speeds, longest silence broken,
+  // novelist, laugher, per-sender dossier stats, and chat superlative awards.
   function insights(result) {
     const msgs = result.messages || [];
     const order = detectDateOrder(msgs);
     const hours = new Array(24).fill(0);
+    const weekdays = new Array(7).fill(0);
     const hourSenders = Array.from({ length: 24 }, () => new Map());
     const days = new Map();
     const starters = new Map();
+    const lastWords = new Map();
     const laughs = new Map();
     const textStats = new Map(); // sender -> { count, chars }
+    const replyGaps = new Map(); // sender -> number[] (ms)
+    const perSender = new Map();
+
+    const getS = (name) => {
+      let s = perSender.get(name);
+      if (!s) {
+        s = {
+          sender: name,
+          count: 0,
+          textCount: 0,
+          chars: 0,
+          mediaCount: 0,
+          starts: 0,
+          lastWords: 0,
+          laughs: 0,
+          questions: 0,
+          shouts: 0,
+          links: 0,
+          nightMsgs: 0,
+          earlyMsgs: 0,
+          totalTs: 0,
+          bursts: 0,
+          maxBurst: 0,
+        };
+        perSender.set(name, s);
+      }
+      return s;
+    };
 
     let totalParsedTs = 0;
     let prevMs = null;
+    let prevSender = null;
+    let prevIdx = -1;
     let streakSender = null;
     let streakCount = 0;
+    let streakStart = 0;
     let longestStreak = null;
+    let streakRange = null;
+    let longestSilence = null;
     let textChars = 0;
     let textMessages = 0;
 
@@ -389,13 +456,28 @@
 
     for (let i = 0; i < msgs.length; i++) {
       const m = msgs[i];
+      const st = getS(m.sender);
+      st.count++;
+
       if (!m.media) {
         textMessages++;
         textChars += m.text.length;
+        st.textCount++;
+        st.chars += m.text.length;
         let ts = textStats.get(m.sender);
         if (!ts) { ts = { count: 0, chars: 0 }; textStats.set(m.sender, ts); }
         ts.count++;
         ts.chars += m.text.length;
+
+        if (LAUGH_RE.test(m.text)) {
+          laughs.set(m.sender, (laughs.get(m.sender) || 0) + 1);
+          st.laughs++;
+        }
+        if (m.text.indexOf('?') !== -1) st.questions++;
+        if (isShouting(m.text)) st.shouts++;
+        if (URL_RE.test(m.text)) st.links++;
+      } else {
+        st.mediaCount++;
       }
 
       if (m.sender === streakSender) {
@@ -403,30 +485,75 @@
       } else {
         streakSender = m.sender;
         streakCount = 1;
+        streakStart = i;
+        st.bursts++;
       }
+      if (streakCount > st.maxBurst) st.maxBurst = streakCount;
       if (!longestStreak || streakCount > longestStreak.count) {
         longestStreak = { sender: streakSender, count: streakCount };
-      }
-
-      if (!m.media && LAUGH_RE.test(m.text)) {
-        laughs.set(m.sender, (laughs.get(m.sender) || 0) + 1);
+        streakRange = { startIdx: streakStart, endIdx: i };
       }
 
       const p = parseTs(m.ts, order);
       if (p) {
         totalParsedTs++;
         hours[p.hour]++;
+        weekdays[p.weekday]++;
         const hs = hourSenders[p.hour];
         hs.set(m.sender, (hs.get(m.sender) || 0) + 1);
 
-        let d = days.get(p.dayKey);
-        if (!d) { d = { dayKey: p.dayKey, label: p.dayLabel, count: 0 }; days.set(p.dayKey, d); }
-        d.count++;
+        st.totalTs++;
+        if (p.hour >= 0 && p.hour <= 4) st.nightMsgs++;
+        if (p.hour >= 5 && p.hour <= 8) st.earlyMsgs++;
 
-        if (prevMs !== null && (p.ms - prevMs) >= GAP_MS) {
-          starters.set(m.sender, (starters.get(m.sender) || 0) + 1);
+        let d = days.get(p.dayKey);
+        if (!d) {
+          d = {
+            dayKey: p.dayKey,
+            label: p.dayLabel,
+            count: 0,
+            weekday: p.weekday,
+            firstIdx: i,
+            lastIdx: i,
+            senders: new Map(),
+          };
+          days.set(p.dayKey, d);
+        }
+        d.count++;
+        d.lastIdx = i;
+        d.senders.set(m.sender, (d.senders.get(m.sender) || 0) + 1);
+
+        if (prevMs !== null) {
+          const gap = p.ms - prevMs;
+          if (gap >= GAP_MS) {
+            starters.set(m.sender, (starters.get(m.sender) || 0) + 1);
+            st.starts++;
+            if (prevSender) {
+              lastWords.set(prevSender, (lastWords.get(prevSender) || 0) + 1);
+              getS(prevSender).lastWords++;
+            }
+          } else if (gap >= 0 && prevSender && m.sender !== prevSender) {
+            let rg = replyGaps.get(m.sender);
+            if (!rg) { rg = []; replyGaps.set(m.sender, rg); }
+            rg.push(gap);
+          }
+          if (gap >= 3600000 && (!longestSilence || gap > longestSilence.ms)) {
+            longestSilence = {
+              ms: gap,
+              days: Math.round((gap / 86400000) * 10) / 10,
+              hours: Math.round((gap / 3600000) * 10) / 10,
+              breaker: m.sender,
+              prevSender: prevSender,
+              startIdx: prevIdx,
+              endIdx: i,
+              fromTs: msgs[prevIdx].ts,
+              toTs: m.ts,
+            };
+          }
         }
         prevMs = p.ms;
+        prevSender = m.sender;
+        prevIdx = i;
       }
     }
 
@@ -440,16 +567,41 @@
     }
 
     let peakDay = null;
+    let peakDayRange = null;
+    const dayList = [];
     for (const d of days.values()) {
-      if (!peakDay || d.count > peakDay.count) peakDay = d;
+      let topSender = null;
+      let topCount = 0;
+      for (const [s, c] of d.senders) {
+        if (c > topCount) { topCount = c; topSender = s; }
+      }
+      dayList.push({
+        dayKey: d.dayKey,
+        label: d.label,
+        count: d.count,
+        weekday: d.weekday,
+        firstIdx: d.firstIdx,
+        lastIdx: d.lastIdx,
+        topSender,
+        senders: d.senders,
+      });
+      if (!peakDay || d.count > peakDay.count) {
+        peakDay = { dayKey: d.dayKey, label: d.label, count: d.count };
+        peakDayRange = { firstIdx: d.firstIdx, lastIdx: d.lastIdx };
+      }
     }
+    dayList.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
 
     const multiSender = (result.senders || []).length >= 2;
 
     let starter = null;
+    let lastWord = null;
     if (multiSender) {
       for (const [sender, count] of starters) {
         if (!starter || count > starter.count) starter = { sender, count };
+      }
+      for (const [sender, count] of lastWords) {
+        if (!lastWord || count > lastWord.count) lastWord = { sender, count };
       }
     }
 
@@ -465,20 +617,135 @@
       if (!laugher || count > laugher.count) laugher = { sender, count };
     }
 
+    // Finalize per-sender dossier stats
+    const senderStats = {};
+    let fastestReplier = null;
+    let slowestReplier = null;
+    let machineGun = null;
+    let nightOwl = null;
+    let earlyBird = null;
+    let interrogator = null;
+    let shouter = null;
+    let dealer = null;
+
+    for (const s of perSender.values()) {
+      const rg = replyGaps.get(s.sender) || [];
+      const med = rg.length ? median(rg) : null;
+      const avgChars = s.textCount ? Math.round(s.chars / s.textCount) : 0;
+      const avgBurst = s.bursts ? Math.round((s.count / s.bursts) * 10) / 10 : 0;
+      const nightPct = s.totalTs ? Math.round((s.nightMsgs / s.totalTs) * 100) : 0;
+      const earlyPct = s.totalTs ? Math.round((s.earlyMsgs / s.totalTs) * 100) : 0;
+      const shares = s.mediaCount + s.links;
+
+      const entry = {
+        sender: s.sender,
+        count: s.count,
+        textCount: s.textCount,
+        chars: s.chars,
+        avgChars,
+        mediaCount: s.mediaCount,
+        starts: s.starts,
+        lastWords: s.lastWords,
+        laughs: s.laughs,
+        questions: s.questions,
+        shouts: s.shouts,
+        links: s.links,
+        shares,
+        nightMsgs: s.nightMsgs,
+        earlyMsgs: s.earlyMsgs,
+        nightPct,
+        earlyPct,
+        bursts: s.bursts,
+        avgBurst,
+        maxBurst: s.maxBurst,
+        medianReplyMs: med,
+        replyCount: rg.length,
+        badges: [],
+      };
+      senderStats[s.sender] = entry;
+
+      if (multiSender) {
+        if (med !== null && rg.length >= 2) {
+          if (!fastestReplier || med < fastestReplier.medianMs) {
+            fastestReplier = { sender: s.sender, medianMs: med };
+          }
+          if (!slowestReplier || med > slowestReplier.medianMs) {
+            slowestReplier = { sender: s.sender, medianMs: med };
+          }
+        }
+        if (avgBurst >= 1.4 && s.bursts >= 2 && (!machineGun || avgBurst > machineGun.avgBurst)) {
+          machineGun = { sender: s.sender, avgBurst };
+        }
+        if (s.nightMsgs >= 2 && (!nightOwl || nightPct > nightOwl.pct || (nightPct === nightOwl.pct && s.nightMsgs > nightOwl.count))) {
+          nightOwl = { sender: s.sender, pct: nightPct, count: s.nightMsgs };
+        }
+        if (s.earlyMsgs >= 2 && (!earlyBird || earlyPct > earlyBird.pct || (earlyPct === earlyBird.pct && s.earlyMsgs > earlyBird.count))) {
+          earlyBird = { sender: s.sender, pct: earlyPct, count: s.earlyMsgs };
+        }
+        if (s.questions >= 2 && (!interrogator || s.questions > interrogator.count)) {
+          interrogator = { sender: s.sender, count: s.questions };
+        }
+        if (s.shouts >= 2 && (!shouter || s.shouts > shouter.count)) {
+          shouter = { sender: s.sender, count: s.shouts };
+        }
+        if (shares >= 2 && (!dealer || shares > dealer.count)) {
+          dealer = { sender: s.sender, count: shares };
+        }
+      }
+    }
+
+    if (slowestReplier && fastestReplier && slowestReplier.sender === fastestReplier.sender) {
+      slowestReplier = null;
+    }
+
+    // Build award badges and attach to each winning sender's dossier
+    const awards = [];
+    const addAward = (id, icon, title, sender, detail) => {
+      if (!sender || !senderStats[sender]) return;
+      const a = { id, icon, title, sender, detail };
+      awards.push(a);
+      senderStats[sender].badges.push({ id, icon, title, detail });
+    };
+
+    if (multiSender) {
+      if (fastestReplier) addAward('fastest', '⚡', 'Fastest draw', fastestReplier.sender, formatDurationShort(fastestReplier.medianMs) + ' median');
+      if (slowestReplier) addAward('slowest', '🐢', 'Left on read', slowestReplier.sender, formatDurationShort(slowestReplier.medianMs) + ' median');
+      if (starter) addAward('starter', '🚀', 'Convo starter', starter.sender, '×' + starter.count);
+      if (lastWord) addAward('lastWord', '🏁', 'Last word', lastWord.sender, '×' + lastWord.count);
+      if (novelist) addAward('novelist', '✍️', 'Novelist', novelist.sender, novelist.avgChars + ' ch/msg');
+      if (machineGun) addAward('machineGun', '💥', 'Machine-gun', machineGun.sender, machineGun.avgBurst + ' msgs/turn');
+      if (nightOwl) addAward('nightOwl', '🌙', 'Night owl', nightOwl.sender, nightOwl.pct + '% after midnight');
+      if (earlyBird) addAward('earlyBird', '☀️', 'Early bird', earlyBird.sender, earlyBird.pct + '% early AM');
+      if (laugher) addAward('laugher', '😂', 'Laugh track', laugher.sender, '×' + laugher.count);
+      if (interrogator) addAward('interrogator', '❓', 'Interrogator', interrogator.sender, interrogator.count + ' questions');
+      if (shouter) addAward('shouter', '📢', 'ALL CAPS', shouter.sender, shouter.count + ' loud msgs');
+      if (dealer) addAward('dealer', '📎', 'Link & media dealer', dealer.sender, dealer.count + ' shared');
+    }
+
     return {
       hours,
+      weekdays,
       hourSenders,
+      dayList,
       totalParsedTs,
       peakHour,
       peakDay,
+      peakDayRange,
       longestStreak: multiSender && longestStreak && longestStreak.count >= 2 ? longestStreak : null,
+      streakRange: multiSender && longestStreak && longestStreak.count >= 2 ? streakRange : null,
+      longestSilence,
       starter,
+      lastWord,
       novelist,
       laugher,
+      fastestReplier,
+      slowestReplier,
+      senderStats,
+      awards,
       textChars,
       avgChars: textMessages ? Math.round(textChars / textMessages) : 0,
     };
   }
 
-  return { parse, senderMap, detectNames, toText, insights };
+  return { parse, senderMap, detectNames, replaceNames, toText, insights, formatDurationShort };
 });

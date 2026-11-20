@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Message counter for WhatsApp exports</title>
-  <meta name="description" content="Drop a WhatsApp chat export (.txt) and count its messages — right in your browser.">
+  <meta name="description" content="Drop a WhatsApp chat export (.txt) and count its messages right in your browser.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
@@ -21,11 +21,11 @@
     <section id="dropSection" class="drop-section">
       <button type="button" id="dropZone" class="drop-zone" aria-describedby="dropHint">
         <span class="drop-title">Drop your WhatsApp export here</span>
-        <span class="drop-sub">The .txt you get from Export chat — or browse your files</span>
+        <span class="drop-sub">The .txt file from Export chat, or click to browse</span>
       </button>
       <div class="drop-meta">
         <p id="dropHint" class="drop-hint">In WhatsApp: open the chat, tap ⋮, then More, then Export chat, then Without media.</p>
-        <button type="button" id="sampleBtn" class="text-btn">No export handy? Count a sample chat</button>
+        <button type="button" id="sampleBtn" class="text-btn">No export handy? Try a sample chat</button>
       </div>
       <input type="file" id="fileInput" accept=".txt,text/plain" hidden>
     </section>
@@ -33,7 +33,7 @@
     <section id="errorSection" class="error-section" hidden>
       <div class="bubble bubble-in">
         <p id="errorText" class="error-text"></p>
-        <button type="button" id="errorSampleBtn" class="text-btn">Count the sample chat instead</button>
+        <button type="button" id="errorSampleBtn" class="text-btn">Try the sample chat instead</button>
       </div>
     </section>
 
@@ -48,12 +48,17 @@
           <div class="strip-modes" role="tablist" aria-label="Strip view">
             <button type="button" id="stripTimelineBtn" class="pill-btn active" role="tab" aria-selected="true">Timeline</button>
             <button type="button" id="stripClockBtn" class="pill-btn" role="tab" aria-selected="false">24h clock</button>
+            <button type="button" id="stripCalendarBtn" class="pill-btn" role="tab" aria-selected="false">Calendar</button>
           </div>
+          <label class="strip-search-wrap" aria-label="Search for a word on the strip">
+            <input type="search" id="wordSearch" class="strip-search" placeholder="search a word…" autocomplete="off" spellcheck="false">
+          </label>
           <button type="button" id="wordFilterPill" class="filter-pill" hidden></button>
-          <span id="stripHint" class="strip-hint">hover to scrub · click sender to spotlight</span>
+          <button type="button" id="memoryBtn" class="pill-action" title="Jump to a random message in this chat">🎲 Memory</button>
+          <span id="stripHint" class="strip-hint">hover to scrub · click to peek</span>
         </div>
         <div class="strip-stage">
-          <canvas id="strip" class="strip" role="img" aria-label="One tick per message, colored by sender"></canvas>
+          <canvas id="strip" class="strip" role="img" aria-label="Activity chart for the chat"></canvas>
           <div id="stripTooltip" class="strip-tooltip" hidden></div>
         </div>
       </div>
@@ -71,17 +76,44 @@
           </span>
         </button>
         <p id="extras" class="extras"></p>
-        <ul id="vibeList" class="vibe-list" hidden></ul>
+        <div id="vibeList" class="vibe-list" hidden></div>
       </div>
 
       <div class="side-pane">
+        <div id="sendersBar" class="senders-bar" hidden>
+          <span id="raceStatus" class="race-status">click a sender to see their stats</span>
+          <div class="race-controls">
+            <button type="button" id="raceBtn" class="pill-action" title="Watch message totals play out over time">▶ Play race</button>
+            <button type="button" id="raceResetBtn" class="pill-action" hidden title="Return to final totals">Reset</button>
+          </div>
+          <div id="raceTrack" class="race-track" hidden><i id="raceFill"></i></div>
+        </div>
         <ul id="senders" class="senders"></ul>
 
         <section id="wordSection" class="word-section" hidden aria-live="polite">
           <p class="word-sub" id="wordSub"></p>
           <div id="wordStats" class="word-stats"></div>
 
-          <h3 class="word-h3">diversity leaderboard</h3>
+          <div id="quizBox" class="quiz-box" hidden>
+            <div class="quiz-head">
+              <h3 class="word-h3">who said it?</h3>
+              <span id="quizScore" class="quiz-score">0 / 0</span>
+            </div>
+            <div class="bubble bubble-in quiz-bubble">
+              <p id="quizQuote" class="quiz-quote"></p>
+              <span id="quizMeta" class="quiz-meta" hidden></span>
+            </div>
+            <div id="quizChoices" class="quiz-choices"></div>
+            <div id="quizFooter" class="quiz-footer" hidden>
+              <span id="quizFeedback" class="quiz-feedback"></span>
+              <div class="quiz-footer-btns">
+                <button type="button" id="quizPeekBtn" class="text-btn">Peek in context</button>
+                <button type="button" id="quizNextBtn" class="pill-action">Next quote</button>
+              </div>
+            </div>
+          </div>
+
+          <h3 class="word-h3">diversity &amp; catchphrases</h3>
           <ul id="wordBoard" class="word-board"></ul>
 
           <div class="word-h3-row">
@@ -113,15 +145,58 @@
           <span>Word games 🎲</span>
         </label>
         <div class="actions-end">
+          <button type="button" id="wrappedBtn" class="again-btn accent-btn">✨ Wrapped</button>
           <button type="button" id="exportBtn" class="again-btn" hidden>Export anonymized .txt</button>
-          <button type="button" id="cardBtn" class="again-btn">Save card</button>
+          <div class="card-menu-wrap">
+            <button type="button" id="cardBtn" class="again-btn" aria-haspopup="menu" aria-expanded="false">Save card ▾</button>
+            <div id="cardMenu" class="card-menu" role="menu" hidden>
+              <button type="button" id="cardWideBtn" class="card-menu-item" role="menuitem">16:9 Landscape card</button>
+              <button type="button" id="cardStoryBtn" class="card-menu-item" role="menuitem">9:16 Story card</button>
+            </div>
+          </div>
           <button type="button" id="againBtn" class="again-btn">Count another file</button>
         </div>
       </div>
     </section>
 
-    <footer class="foot">Everything runs in your browser — your chat never leaves this device.</footer>
+    <footer class="foot">Everything runs locally in your browser. Your chat stays on your device.</footer>
   </main>
+
+  <!-- Moment Peek (Time Capsule) modal -->
+  <div id="peekModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="peekTitle" hidden>
+    <div class="modal-card peek-card">
+      <div class="modal-head">
+        <div class="modal-head-text">
+          <span id="peekTitle" class="modal-title">Moment peek</span>
+          <span id="peekSub" class="modal-sub"></span>
+        </div>
+        <button type="button" id="peekCloseBtn" class="icon-close" aria-label="Close">×</button>
+      </div>
+      <div id="peekMessages" class="peek-messages"></div>
+      <div class="peek-foot">
+        <button type="button" id="peekPrevBtn" class="pill-action">← Earlier</button>
+        <button type="button" id="peekRandomBtn" class="pill-action">🎲 Random</button>
+        <button type="button" id="peekNextBtn" class="pill-action">Later →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Chat Wrapped (Story Mode) modal -->
+  <div id="wrappedModal" class="modal-backdrop wrapped-backdrop" role="dialog" aria-modal="true" aria-label="Chat Wrapped story" hidden>
+    <div class="wrapped-stage">
+      <div id="wrappedBars" class="wrapped-bars" aria-hidden="true"></div>
+      <div class="wrapped-top">
+        <span class="wrapped-brand"><span class="presence" aria-hidden="true"></span> chat wrapped</span>
+        <span id="wrappedCounter" class="wrapped-counter">1 / 6</span>
+        <button type="button" id="wrappedCloseBtn" class="icon-close" aria-label="Close Wrapped">×</button>
+      </div>
+      <div id="wrappedSlide" class="wrapped-slide"></div>
+      <div class="wrapped-nav">
+        <button type="button" id="wrappedPrevBtn" class="pill-action">← Back</button>
+        <button type="button" id="wrappedNextBtn" class="pill-action accent-pill">Next →</button>
+      </div>
+    </div>
+  </div>
 
   <script src="names.js"></script>
   <script src="parser.js"></script>
