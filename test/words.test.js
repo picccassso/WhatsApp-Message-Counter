@@ -144,6 +144,26 @@ check('BOOKS ascending by uniqueWords', BOOKS.map((b) => b.uniqueWords), [50, 23
   check('no raw detected name in top words', w.top.some((t) => /samantha/i.test(t.word)), false);
 }
 
+/* ---------- filterStopWords & per-sender favEmoji ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 18:43 - Alex: the and to the coffee coffee 😂',
+    '12/05/2025, 18:44 - Sam: i am the tea 🔥🔥',
+  ].join('\n'));
+  const filtered = analyze(r.messages, { filterStopWords: true });
+  check('stop words skipped in top cloud', filtered.top.map((t) => t.word), ['coffee', 'tea']);
+  check('totalWords/uniqueWords keep stop words for Book Bank accuracy', [filtered.totalWords, filtered.uniqueWords], [10, 7]);
+  const alex = filtered.senders.find((s) => s.sender === 'Alex');
+  const sam = filtered.senders.find((s) => s.sender === 'Sam');
+  check('signature skips stop words', [alex.signature, sam.signature], ['coffee', 'tea']);
+  check('per-sender favEmoji', [alex.favEmoji, sam.favEmoji], [{ emoji: '😂', count: 1 }, { emoji: '🔥', count: 2 }]);
+
+  // fallback if a chat contains only stop words
+  const allStop = analyze(parse('12/05/2025, 18:43 - Alex: the and to\n').messages, { filterStopWords: true });
+  check('all-stop-word chat falls back cleanly', allStop.top.length, 3);
+}
+
 /* ---------- big fixture: runs fast and sane on 100k messages ---------- */
 
 {

@@ -15,6 +15,7 @@
     <header class="top">
       <span class="presence" aria-hidden="true"></span>
       <span class="wordmark">message counter</span>
+      <span id="typingStatus" class="typing-status" hidden>typing<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
     </header>
 
     <section id="dropSection" class="drop-section">
@@ -43,40 +44,59 @@
       </div>
 
       <div class="strip-wrap">
-        <canvas id="strip" class="strip" role="img" aria-label="One tick per message, colored by sender"></canvas>
-        <p class="strip-caption">One tick per message, colored by sender. Hover a sender to spotlight their ticks.</p>
+        <div class="strip-bar">
+          <div class="strip-modes" role="tablist" aria-label="Strip view">
+            <button type="button" id="stripTimelineBtn" class="pill-btn active" role="tab" aria-selected="true">Timeline</button>
+            <button type="button" id="stripClockBtn" class="pill-btn" role="tab" aria-selected="false">24h clock</button>
+          </div>
+          <button type="button" id="wordFilterPill" class="filter-pill" hidden></button>
+          <span id="stripHint" class="strip-hint">hover to scrub · click sender to spotlight</span>
+        </div>
+        <div class="strip-stage">
+          <canvas id="strip" class="strip" role="img" aria-label="One tick per message, colored by sender"></canvas>
+          <div id="stripTooltip" class="strip-tooltip" hidden></div>
+        </div>
       </div>
 
       <div class="answer-pane">
-        <div class="bubble bubble-out answer">
+        <button type="button" id="answerBtn" class="bubble bubble-out answer" title="Click to switch units">
           <span class="answer-num" id="bigNumber">0</span>
-          <span class="answer-label">messages
-            <svg class="receipts" viewBox="0 0 20 12" width="18" height="11" aria-hidden="true">
+          <span class="answer-label">
+            <span id="answerUnit">messages</span>
+            <span id="answerDots" class="answer-dots" aria-hidden="true"></span>
+            <svg id="receiptsIcon" class="receipts" viewBox="0 0 20 12" width="18" height="11" aria-hidden="true">
               <path d="M1 6.5 4.2 9.7 10 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               <path d="M8.5 6.5 11.7 9.7 17.5 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>
-        </div>
+        </button>
         <p id="extras" class="extras"></p>
+        <ul id="vibeList" class="vibe-list" hidden></ul>
       </div>
 
       <div class="side-pane">
         <ul id="senders" class="senders"></ul>
 
         <section id="wordSection" class="word-section" hidden aria-live="polite">
-          <h2 class="word-title">word games 🎲</h2>
           <p class="word-sub" id="wordSub"></p>
           <div id="wordStats" class="word-stats"></div>
 
           <h3 class="word-h3">diversity leaderboard</h3>
           <ul id="wordBoard" class="word-board"></ul>
 
-          <h3 class="word-h3">most used words</h3>
+          <div class="word-h3-row">
+            <h3 class="word-h3">most used words</h3>
+            <label class="mini-check">
+              <input type="checkbox" id="stopWordsToggle" checked>
+              <span>skip common words</span>
+            </label>
+          </div>
           <div id="wordCloud" class="word-cloud"></div>
 
           <h3 class="word-h3">the book bank</h3>
           <p class="word-sub" id="bookNote"></p>
           <ul id="bookBank" class="book-bank"></ul>
+          <button type="button" id="bookExpandBtn" class="text-btn book-expand" hidden>show all 5 books</button>
         </section>
       </div>
 
@@ -86,14 +106,15 @@
           <span class="track" aria-hidden="true"></span>
           <span>Anonymize names</span>
         </label>
-        <input type="text" id="extraNames" class="extra-names" placeholder="also hide names… e.g. Mum, Samantha" aria-label="Extra names to anonymize inside texts (comma-separated)">
+        <input type="text" id="extraNames" class="extra-names" hidden placeholder="also hide… e.g. Mum, Sam" aria-label="Extra names to anonymize inside texts (comma-separated)">
         <label class="switch">
           <input type="checkbox" id="wordsToggle">
           <span class="track" aria-hidden="true"></span>
           <span>Word games 🎲</span>
         </label>
         <div class="actions-end">
-          <button type="button" id="exportBtn" class="again-btn">Export .txt</button>
+          <button type="button" id="exportBtn" class="again-btn" hidden>Export anonymized .txt</button>
+          <button type="button" id="cardBtn" class="again-btn">Save card</button>
           <button type="button" id="againBtn" class="again-btn">Count another file</button>
         </div>
       </div>

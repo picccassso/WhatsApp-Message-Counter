@@ -2,7 +2,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { parse, senderMap, detectNames, toText } = require('../parser.js');
+const { parse, senderMap, detectNames, toText, insights } = require('../parser.js');
 
 let failures = 0;
 function check(name, actual, expected) {
@@ -205,6 +205,35 @@ function roundTrip(f) {
   const out = toText(r, { senderMap: senderMap(r) });
   check('substring of a longer word kept', out.includes('marinate the chicken'), true);
   check('real mention replaced', out.includes('Person B style'), true);
+}
+
+/* ---------- insights (hours, peak day, streak, starter, novelist, laugher) ---------- */
+
+{
+  const r = parse([
+    '12/05/2025, 22:05 - Alex: hey',
+    '12/05/2025, 22:06 - Sam: hello there my friend how is your evening going today',
+    '12/05/2025, 22:07 - Alex: haha 😂',
+    '12/05/2025, 22:08 - Alex: wait',
+    '12/05/2025, 22:09 - Alex: look',
+    '13/05/2025, 09:00 - Sam: morning lol',
+  ].join('\n'));
+  const ins = insights(r);
+  check('insights peak hour', ins.peakHour, { hour: 22, count: 5 });
+  check('insights peak day', ins.peakDay, { dayKey: '2025-05-12', label: '12 May 2025', count: 5 });
+  check('insights longest streak', ins.longestStreak, { sender: 'Alex', count: 3 });
+  check('insights starter after >=6h gap', ins.starter, { sender: 'Sam', count: 1 });
+  check('insights novelist', ins.novelist.sender, 'Sam');
+  check('insights laugher tie breaks by first', ins.laugher, { sender: 'Alex', count: 1 });
+  check('insights hours sum', ins.hours.reduce((a, b) => a + b, 0), 6);
+}
+
+// single-sender chat omits streak and starter
+{
+  const r = parse('12/05/2025, 10:00 - Alex: note 1\n12/05/2025, 20:00 - Alex: note 2\n');
+  const ins = insights(r);
+  check('single-sender streak null', ins.longestStreak, null);
+  check('single-sender starter null', ins.starter, null);
 }
 
 if (failures) {

@@ -304,5 +304,181 @@
     return lines.length ? lines.join('\n') + '\n' : '';
   }
 
-  return { parse, senderMap, detectNames, toText };
+  // Fast date+time extraction for chat insights and the 24h activity strip.
+  const TS_PARTS_RE = /^(\d{1,4})[/.-](\d{1,2})[/.-](\d{2,4}),\s*(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM|am|pm)?$/;
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const LAUGH_RE = /\b(?:ha(?:ha)+|he(?:he)+|lol+|lmao+|rofl)\b|[😂🤣💀]/iu;
+
+  // Determine whether non-ISO numeric dates are DD/MM or MM/DD across the chat.
+  function detectDateOrder(messages) {
+    let sawFirstOver12 = false;
+    let sawSecondOver12 = false;
+    let sawAmPm = false;
+    for (let i = 0; i < messages.length; i++) {
+      const m = TS_PARTS_RE.exec(messages[i].ts);
+      if (!m) continue;
+      if (m[1].length === 4) continue; // YYYY-MM-DD
+      const a = +m[1];
+      const b = +m[2];
+      if (a > 12) sawFirstOver12 = true;
+      if (b > 12) sawSecondOver12 = true;
+      if (m[6]) sawAmPm = true;
+      if (sawFirstOver12 || sawSecondOver12) break;
+    }
+    if (sawFirstOver12 && !sawSecondOver12) return 'DMY';
+    if (sawSecondOver12 && !sawFirstOver12) return 'MDY';
+    return sawAmPm ? 'MDY' : 'DMY';
+  }
+
+  function parseTs(ts, order) {
+    const m = TS_PARTS_RE.exec(ts);
+    if (!m) return null;
+    let year, month, day;
+    if (m[1].length === 4) {
+      year = +m[1];
+      month = +m[2];
+      day = +m[3];
+    } else {
+      year = +m[3];
+      if (year < 100) year += 2000;
+      if (order === 'MDY') {
+        month = +m[1];
+        day = +m[2];
+      } else {
+        day = +m[1];
+        month = +m[2];
+      }
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    let hour = +m[4];
+    const min = +m[5];
+    const ampm = m[6] ? m[6].toUpperCase() : null;
+    if (ampm) {
+      if (ampm === 'AM' && hour === 12) hour = 0;
+      else if (ampm === 'PM' && hour < 12) hour += 12;
+    }
+    if (hour < 0 || hour > 23 || min < 0 || min > 59) return null;
+    const ms = Date.UTC(year, month - 1, day, hour, min);
+    const dayKey = year + '-' + String(month).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+    const dayLabel = day + ' ' + MONTHS[month - 1] + ' ' + year;
+    return { hour, ms, dayKey, dayLabel };
+  }
+
+  // Compute fun chat insights in a single pass over result.messages:
+  // 24h activity, peak hour, busiest day, longest monologue streak,
+  // conversation starter (after >= 6h silence), novelist (avg chars), and laugher.
+  function insights(result) {
+    const msgs = result.messages || [];
+    const order = detectDateOrder(msgs);
+    const hours = new Array(24).fill(0);
+    const hourSenders = Array.from({ length: 24 }, () => new Map());
+    const days = new Map();
+    const starters = new Map();
+    const laughs = new Map();
+    const textStats = new Map(); // sender -> { count, chars }
+
+    let totalParsedTs = 0;
+    let prevMs = null;
+    let streakSender = null;
+    let streakCount = 0;
+    let longestStreak = null;
+    let textChars = 0;
+    let textMessages = 0;
+
+    const GAP_MS = 6 * 3600 * 1000;
+
+    for (let i = 0; i < msgs.length; i++) {
+      const m = msgs[i];
+      if (!m.media) {
+        textMessages++;
+        textChars += m.text.length;
+        let ts = textStats.get(m.sender);
+        if (!ts) { ts = { count: 0, chars: 0 }; textStats.set(m.sender, ts); }
+        ts.count++;
+        ts.chars += m.text.length;
+      }
+
+      if (m.sender === streakSender) {
+        streakCount++;
+      } else {
+        streakSender = m.sender;
+        streakCount = 1;
+      }
+      if (!longestStreak || streakCount > longestStreak.count) {
+        longestStreak = { sender: streakSender, count: streakCount };
+      }
+
+      if (!m.media && LAUGH_RE.test(m.text)) {
+        laughs.set(m.sender, (laughs.get(m.sender) || 0) + 1);
+      }
+
+      const p = parseTs(m.ts, order);
+      if (p) {
+        totalParsedTs++;
+        hours[p.hour]++;
+        const hs = hourSenders[p.hour];
+        hs.set(m.sender, (hs.get(m.sender) || 0) + 1);
+
+        let d = days.get(p.dayKey);
+        if (!d) { d = { dayKey: p.dayKey, label: p.dayLabel, count: 0 }; days.set(p.dayKey, d); }
+        d.count++;
+
+        if (prevMs !== null && (p.ms - prevMs) >= GAP_MS) {
+          starters.set(m.sender, (starters.get(m.sender) || 0) + 1);
+        }
+        prevMs = p.ms;
+      }
+    }
+
+    let peakHour = null;
+    if (totalParsedTs > 0) {
+      let bestH = 0;
+      for (let h = 1; h < 24; h++) {
+        if (hours[h] > hours[bestH]) bestH = h;
+      }
+      peakHour = { hour: bestH, count: hours[bestH] };
+    }
+
+    let peakDay = null;
+    for (const d of days.values()) {
+      if (!peakDay || d.count > peakDay.count) peakDay = d;
+    }
+
+    const multiSender = (result.senders || []).length >= 2;
+
+    let starter = null;
+    if (multiSender) {
+      for (const [sender, count] of starters) {
+        if (!starter || count > starter.count) starter = { sender, count };
+      }
+    }
+
+    let novelist = null;
+    for (const [sender, st] of textStats) {
+      if (st.count < 2 && msgs.length > 4) continue;
+      const avg = Math.round(st.chars / st.count);
+      if (!novelist || avg > novelist.avgChars) novelist = { sender, avgChars: avg };
+    }
+
+    let laugher = null;
+    for (const [sender, count] of laughs) {
+      if (!laugher || count > laugher.count) laugher = { sender, count };
+    }
+
+    return {
+      hours,
+      hourSenders,
+      totalParsedTs,
+      peakHour,
+      peakDay,
+      longestStreak: multiSender && longestStreak && longestStreak.count >= 2 ? longestStreak : null,
+      starter,
+      novelist,
+      laugher,
+      textChars,
+      avgChars: textMessages ? Math.round(textChars / textMessages) : 0,
+    };
+  }
+
+  return { parse, senderMap, detectNames, toText, insights };
 });
