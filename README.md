@@ -33,15 +33,6 @@ Anonymization is best-effort for whole-word matches of known names. Nicknames, t
 
 Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
 
-### 🧹 Spam-adjusted counts & 🧪 ML Lab (on-device NLP + active learning)
-
-The raw counter counts every parsed line. Flip **🧹 Spam-adjusted** to run the full client-side data-cleaning and ML pipeline in `quality.js`:
-
-1. **Corpus-level NLP (IDF):** computes chat-specific Inverse Document Frequency across the export so words spammed repeatedly in *this* chat automatically carry low information weight, regardless of language or inside-joke slang.
-2. **18-feature extraction & cleaning rules:** measures length, vocabulary diversity, mean IDF novelty, multi-language/slang laugh share (`haha`, `lol`, `lmao`, `lmfao`, `jajaja`, `kkkk`, `mdr`, `wkwk`, `im dead`, 😂🤣💀😭), low-effort acknowledgements, emoji-only messages, character-repetition/keysmash spam, consecutive rapid-fire burst streaks, and stretched near-duplicates across a 2-minute / 3-message window, while zeroing out media placeholders and deleted stubs.
-3. **Logistic scoring & live UI integration:** scores every message with `p = sigmoid(b + Σ wᵢ·xᵢ)` using one of three built-in profiles (**Balanced**, **Strict anti-spam**, **Laughs & dupes only**) or your own trained model. Sender rows show **signal %**, **▲/▼ rank-flip badges**, and a dual raw-vs-substantive bar; the timeline strip, Chat Race, Moment Peek, Wrapped, PNG cards, and WhatsApp summary export all follow the switch.
-4. **🧪 ML Lab (train on your own chat):** click **🧪 ML Lab** to inspect per-sender stacked signal-vs-spam breakdowns, the score distribution histogram, an **Active Learning** trainer (label uncertain messages with `1` / `2` to fit an L2-regularized MAP logistic regression directly in your browser, with a live loss curve, validation accuracy/F1/ROC-AUC, and feature-weight chart), a live message sandbox with exact log-odds feature attribution, and one-click CSV / JSON weight exports. Everything stays 100% on your device.
-
 ### Interactive views, toys & Chat Wrapped ✨
 
 - **Answer bubble lenses & Chat Archetype:** click the green message-count bubble to cycle through **messages**, **words**, **characters**, **typing time**, **paperback pages**, and **scroll distance**. Underneath, the chat gets stamped with a personality **Archetype** (e.g. *3 AM Oversharing Syndicate*, *Unofficial Comedy Club*, *One-Sided Podcast*, *Victorian Pen Pals*).
@@ -83,10 +74,8 @@ Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`
 - `names.js`: built-in list of common first names and surnames used when anonymizing message bodies
 - `parser.js`: export parser, insights calculator, and anonymized re-exporter (`parse`, `senderMap`, `detectNames`, `replaceNames`, `toText`, `insights`), also loadable in Node for tests
 - `words.js`: word-games analysis (`tokenize`, `analyze`, `quizCandidates`, `bookReport`), also loadable in Node for tests
-- `quality.js`: on-device NLP & ML message-quality pipeline — corpus IDF, 18-feature extraction, logistic scoring presets, exact feature attribution (`explain`), Active Learning uncertainty sampling (`sampleUncertain`), in-browser L2 logistic regression trainer (`train`/`autoTrain`), and CSV export (`toCSV`), also loadable in Node for tests
 - `test/parser.test.js`: run with `node test/parser.test.js`
 - `test/words.test.js`: run with `node test/words.test.js`
-- `test/quality.test.js`: run with `node test/quality.test.js`
 - `test/fixtures/`: sample exports used by the tests
 - `test/preview-big.html`: dev preview for `fixtures/big_100k.txt`
 

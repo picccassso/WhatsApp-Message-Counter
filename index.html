@@ -189,12 +189,6 @@
           <span class="track" aria-hidden="true"></span>
           <span>Word games 🎲</span>
         </label>
-        <label class="switch" title="Filter out laugh-spam, acks, duplicates, rapid-fire bursts and media with an on-device ML pipeline">
-          <input type="checkbox" id="qualityToggle">
-          <span class="track" aria-hidden="true"></span>
-          <span>🧹 Spam-adjusted</span>
-        </label>
-        <button type="button" id="mlLabBtn" class="pill-action ml-lab-btn" title="Inspect the ML pipeline, teach it your chat with active learning, and test messages live">🧪 ML Lab</button>
         <div class="actions-end">
           <button type="button" id="wrappedBtn" class="again-btn accent-btn">✨ Wrapped</button>
           <button type="button" id="exportBtn" class="again-btn" hidden>Export anonymized .txt</button>
@@ -261,35 +255,6 @@
     </div>
   </div>
 
-  <!-- ML Pipeline Lab modal -->
-  <div id="mlModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="mlModalTitle" hidden>
-    <div class="modal-card ml-card">
-      <div class="modal-head">
-        <div class="modal-head-text">
-          <span id="mlModalTitle" class="modal-title">🧪 ML cleaning pipeline</span>
-          <span id="mlModalSub" class="modal-sub">On-device NLP + L2 logistic regression · nothing leaves your browser</span>
-        </div>
-        <button type="button" id="mlCloseBtn" class="icon-close" aria-label="Close">×</button>
-      </div>
-      <div class="ml-tabs" role="tablist" aria-label="ML Lab sections">
-        <button type="button" id="mlTabOverview" class="pill-btn active" role="tab" aria-selected="true">Overview</button>
-        <button type="button" id="mlTabTrain" class="pill-btn" role="tab" aria-selected="false">Teach model</button>
-        <button type="button" id="mlTabInspect" class="pill-btn" role="tab" aria-selected="false">Inspect &amp; test</button>
-      </div>
-      <div id="mlBody" class="ml-body"></div>
-      <div class="peek-foot ml-foot">
-        <div class="peek-foot-nav">
-          <button type="button" id="mlExportCsvBtn" class="pill-action" title="Download the full labelled feature matrix as CSV for Python / sklearn">⬇ Feature CSV</button>
-          <button type="button" id="mlCopyModelBtn" class="pill-action" title="Copy the current logistic regression weights as JSON">Copy weights JSON</button>
-        </div>
-        <div class="peek-foot-actions">
-          <button type="button" id="mlApplyToggleBtn" class="pill-action accent-pill">Enable spam-adjusted</button>
-          <button type="button" id="mlDoneBtn" class="pill-action">Done</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Chat Wrapped (Story Mode) modal -->
   <div id="wrappedModal" class="modal-backdrop wrapped-backdrop" role="dialog" aria-modal="true" aria-label="Chat Wrapped story" hidden>
     <div class="wrapped-stage">
@@ -317,7 +282,6 @@
   <script src="names.js"></script>
   <script src="parser.js"></script>
   <script src="words.js"></script>
-  <script src="quality.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
