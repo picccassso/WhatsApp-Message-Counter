@@ -20,18 +20,15 @@ Both `.txt` and `.zip` files (even *Include media* archives) can be dropped dire
 
 On the results screen:
 
-- **Anonymize names:** flip the switch to replace every sender with `Person A`, `Person B`, and so on (in order of who messaged first). Colors, counts, and the strip stay the same, and you can flip it back anytime.
-- **Export anonymized .txt:** downloads the chat in its original WhatsApp line layout so you can re-open or share it with the same counts. Sender fields become `Person A/B/...`, and names inside message bodies are scrubbed too. Anonymized exports always save as `anonymized-chat.txt` so the original filename (often `WhatsApp Chat with Alex.txt`) stays private.
+- **Anonymize toggle:** flip the switch to anonymize the entire view live — senders, message previews, group lore, word games, Wrapped, and shareable cards.
+- **🛡️ Anonymize & Export Studio:** click **🛡️ Anonymize & Export** to open the full local PII scrubbing studio before downloading:
+  - **Multi-category detection (100% in-browser):** automatically detects and redacts **People** (senders, first/last name parts, shared surnames, phone-number senders, auto-linked nicknames like `Alex` ↔ `Alexander` / `Chris` ↔ `Christopher`, international names, full names, honorifics, relationship cues), **Places** (world cities, countries, London/NYC areas, street addresses, UK/CA/US postcodes, GPS coordinates, Google/Apple Maps links, venues), **Organizations** (employers, universities, hospitals, corporate suffixes), **Contacts & Digital PII** (emails, phone numbers, URLs, `@handles`, sensitive IDs), **Attachment filenames** (grouped WhatsApp `IMG-*`/`VID-*` rules + custom PDFs/docs), and **Group chat names** in system lines.
+  - **Two replacement modes:** switch anytime between **Typed labels** (`Person A`, `Place 1`, `Org 1`, `[Phone 1]`, `[Email 1]`, `Group 1`) and **Realistic fake stand-ins** (`Jordan`, `Riverton`, `Northstar`, `555-0101`, `contact1@example.com`) with a **🎲 Reroll** button — guaranteed collision-free and single-pass non-cascading.
+  - **Entity control:** toggle off false positives, edit any replacement label, merge nicknames or handles into an existing person (`Merge into…` / `+ alias`), re-tag categories, or add custom words/phrases.
+  - **👀 Review Potential Leaks:** flags unrecognised mid-sentence capitalized proper nouns (nicknames, local spots, indie brands) with one-click `+ Person`, `+ Place`, `+ Org`, `Alias of…`, or `Ignore`.
+  - **🔍 Preview, Verify & Leak Audit:** live color-coded **Before → After** message diff, a **Privacy Score** leak check on the anonymized output, and a **"Verify a word is gone"** search box to confirm 0 mentions of any name/town remain before downloading `anonymized-chat.txt` (or copying to clipboard).
 
-Which names get scrubbed from message bodies and system lines (`Alex changed the subject...`):
-
-- **The senders' own names**, in any capitalization (`alex`, `Alex`, `ALEX` all match), whole-word only so `Sam` stays untouched inside `Samantha`.
-- **Other people's names mentioned in texts:** a built-in list of ~650 common first names and surnames (`names.js`) is detected automatically and labeled `Person C`, `Person D`, etc. in order of first appearance. Names that are also ordinary English words (`Will`, `Grace`, `Cook`, ...) are only replaced when capitalized, leaving sentences like `will you come?` or `the cook is here` intact.
-- **Anything the list misses:** type extra names into the "also hide..." box next to the switch (comma-separated; multi-word names like `Dr. House` work too).
-
-Anonymization is best-effort for whole-word matches of known names. Nicknames, typos, or names outside the list can slip through, so skim the exported `.txt` before sharing it.
-
-Word games, Moment Peek, Wrapped, and PNG cards all follow the anonymize switch.
+Word games, Moment Peek, Wrapped, and PNG cards all follow the active anonymization plan.
 
 ### Interactive views, toys & Chat Wrapped ✨
 
@@ -71,11 +68,13 @@ Supported formats: Android and iOS layouts, `DD/MM/YY` / `M/D/YY` / `YYYY-MM-DD`
 ## Files
 
 - `index.html`, `styles.css`, `app.js`: the vanilla web app
-- `names.js`: built-in list of common first names and surnames used when anonymizing message bodies
-- `parser.js`: export parser, insights calculator, and anonymized re-exporter (`parse`, `senderMap`, `detectNames`, `replaceNames`, `toText`, `insights`), also loadable in Node for tests
+- `names.js`: built-in list of common first names and surnames
+- `anonymizer.js`: multi-stage local PII detection, entity/alias manager, single-pass non-cascading redactor, and pre-export leak audit (also loadable in Node for tests)
+- `parser.js`: export parser, insights calculator, and re-exporter (`parse`, `senderMap`, `detectNames`, `replaceNames`, `toText`, `insights`), also loadable in Node for tests
 - `words.js`: word-games analysis (`tokenize`, `analyze`, `quizCandidates`, `bookReport`), also loadable in Node for tests
 - `test/parser.test.js`: run with `node test/parser.test.js`
 - `test/words.test.js`: run with `node test/words.test.js`
+- `test/anonymizer.test.js`: run with `node test/anonymizer.test.js`
 - `test/fixtures/`: sample exports used by the tests
 - `test/preview-big.html`: dev preview for `fixtures/big_100k.txt`
 

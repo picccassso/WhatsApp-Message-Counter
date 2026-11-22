@@ -116,6 +116,39 @@
   const wrappedPrevBtn = $('wrappedPrevBtn');
   const wrappedNextBtn = $('wrappedNextBtn');
 
+  // Anonymize & Export Studio modal
+  const anonModal = $('anonModal');
+  const anonModalSub = $('anonModalSub');
+  const anonCloseBtn = $('anonCloseBtn');
+  const anonModeTyped = $('anonModeTyped');
+  const anonModeRealistic = $('anonModeRealistic');
+  const anonRerollBtn = $('anonRerollBtn');
+  const anonCatToggles = $('anonCatToggles');
+  const anonTabEntities = $('anonTabEntities');
+  const anonTabSuspects = $('anonTabSuspects');
+  const anonTabPreview = $('anonTabPreview');
+  const anonSuspectsBadge = $('anonSuspectsBadge');
+  const anonEntitiesPane = $('anonEntitiesPane');
+  const anonSuspectsPane = $('anonSuspectsPane');
+  const anonPreviewPane = $('anonPreviewPane');
+  const anonAddForm = $('anonAddForm');
+  const anonAddInput = $('anonAddInput');
+  const anonAddTarget = $('anonAddTarget');
+  const anonEntityFilter = $('anonEntityFilter');
+  const anonFilterCats = $('anonFilterCats');
+  const anonEntityList = $('anonEntityList');
+  const anonSuspectsList = $('anonSuspectsList');
+  const anonAuditCard = $('anonAuditCard');
+  const anonVerifyInput = $('anonVerifyInput');
+  const anonVerifyResult = $('anonVerifyResult');
+  const anonPreviewCount = $('anonPreviewCount');
+  const anonDiffOnlyToggle = $('anonDiffOnlyToggle');
+  const anonDiffList = $('anonDiffList');
+  const anonDiffMoreBtn = $('anonDiffMoreBtn');
+  const anonStatusPill = $('anonStatusPill');
+  const anonCopyBtn = $('anonCopyBtn');
+  const anonDownloadBtn = $('anonDownloadBtn');
+
   const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const numberFmt = new Intl.NumberFormat();
   const LENS_COUNT = 6;
@@ -275,46 +308,25 @@
   anonToggle.addEventListener('change', () => {
     if (!current) return;
     current.anon = anonToggle.checked;
+    if (current.anon) ensureAnonPlan();
     syncAnonUI();
-    buildSenderRows(current.result);
-    renderGroupExtras();
-    renderVibes();
-    renderWordDuelBar();
-    if (current.spotlightWord) {
-      const sw = current.spotlightWord;
-      const who = sw.topSender && current.result.senders.length >= 2 ? ` · mostly ${labelFor(sw.topSender)}` : '';
-      if (wordFilterPill) {
-        wordFilterPill.textContent = sw.hits
-          ? `“${sw.word}” ×${numberFmt.format(sw.hits)}${who} ×`
-          : `“${sw.word}” · 0 matches ×`;
-      }
-    }
-    if (!wordSection.hidden) {
-      renderWords();
-      renderQuizCurrent();
-    }
-    if (peekModal && !peekModal.hidden) renderPeekWindow();
-    if (archModal && !archModal.hidden) openArchetypeModal();
-    if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
-    hideTooltip();
+    refreshAnonViews();
   });
 
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
       if (!current) return;
-      const opts = current.anon ? { senderMap: current.map, nameMap: ensureDetected() } : {};
-      const text = WhatsAppParser.toText(current.result, opts);
-      const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      const yearTag = current.selectedYear ? '-' + current.selectedYear : '';
-      const base = current.anon ? 'anonymized-chat' : (current.name || 'chat').replace(/\.(txt|zip)$/i, '');
-      a.download = base + yearTag + '.txt';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (typeof WhatsAppAnonymizer !== 'undefined' && anonModal) {
+        if (!current.anon) {
+          current.anon = true;
+          anonToggle.checked = true;
+          syncAnonUI();
+          refreshAnonViews();
+        }
+        openAnonStudio();
+        return;
+      }
+      downloadAnonymizedExport();
     });
   }
 
@@ -587,6 +599,7 @@
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       closeCardMenu();
+      if (anonModal && !anonModal.hidden) closeAnonStudio();
       if (peekModal && !peekModal.hidden) closePeek();
       if (archModal && !archModal.hidden) closeArchetypeModal();
       if (wrappedModal && !wrappedModal.hidden) closeWrapped();
@@ -710,6 +723,7 @@
     closePeek();
     closeArchetypeModal();
     closeWrapped();
+    closeAnonStudio();
     closeCardMenu();
     if (typingStatus) typingStatus.hidden = true;
     errorSection.hidden = true;
@@ -729,12 +743,38 @@
 
   /* ---------- helpers & anonymization ---------- */
 
+  function ensureAnonPlan() {
+    if (!current) return null;
+    if (typeof WhatsAppAnonymizer === 'undefined') return null;
+    if (!current.anonPlan) {
+      current.anonPlan = WhatsAppAnonymizer.createPlan(current.fullResult || current.result, {
+        extraNames: readExtraNames(),
+      });
+    }
+    return current.anonPlan;
+  }
+
+  function activeSenderMap() {
+    if (!current) return new Map();
+    if (current.anon && typeof WhatsAppAnonymizer !== 'undefined') {
+      const plan = ensureAnonPlan();
+      if (plan) return WhatsAppAnonymizer.senderLabelMap(plan);
+    }
+    return current.map;
+  }
+
   function labelFor(sender) {
-    return current && current.anon && current.map.get(sender) ? current.map.get(sender) : sender;
+    if (!current || !current.anon) return sender;
+    const sMap = activeSenderMap();
+    return sMap.get(sender) || sender;
   }
 
   function textFor(rawText) {
     if (!current || !current.anon) return rawText;
+    if (typeof WhatsAppAnonymizer !== 'undefined') {
+      const plan = ensureAnonPlan();
+      if (plan) return WhatsAppAnonymizer.anonymizeString(rawText, plan);
+    }
     if (WhatsAppParser.replaceNames) {
       return WhatsAppParser.replaceNames(rawText, current.map, ensureDetected());
     }
@@ -744,7 +784,11 @@
   function syncAnonUI() {
     const on = Boolean(current && current.anon);
     if (extraNamesInput) extraNamesInput.hidden = !on;
-    if (exportBtn) exportBtn.hidden = !on;
+    if (exportBtn) {
+      exportBtn.hidden = false;
+      exportBtn.classList.toggle('accent-btn', on);
+      exportBtn.textContent = on ? '🛡️ Anonymize Studio & Export' : '🛡️ Anonymize & Export';
+    }
   }
 
   function readExtraNames() {
@@ -753,6 +797,10 @@
   }
 
   function ensureDetected() {
+    if (typeof WhatsAppAnonymizer !== 'undefined') {
+      const plan = ensureAnonPlan();
+      if (plan) return WhatsAppAnonymizer.wordTokenMap(plan);
+    }
     if (!current.detected) {
       current.detected = WhatsAppParser.detectNames(current.result, {
         senderMap: current.map,
@@ -762,15 +810,46 @@
     return current.detected;
   }
 
+  function refreshAnonViews() {
+    if (!current) return;
+    current.anonVersion = (current.anonVersion || 0) + 1;
+    current.detected = null;
+    current.wordsCache = {};
+    current.erasCache = {};
+    current.quiz = null;
+    buildSenderRows(current.result);
+    renderGroupExtras();
+    renderVibes();
+    renderWordDuelBar();
+    if (current.spotlightWord) {
+      const sw = current.spotlightWord;
+      const who = sw.topSender && current.result.senders.length >= 2 ? ` · mostly ${labelFor(sw.topSender)}` : '';
+      if (wordFilterPill) {
+        wordFilterPill.textContent = sw.hits
+          ? `“${sw.word}” ×${numberFmt.format(sw.hits)}${who} ×`
+          : `“${sw.word}” · 0 matches ×`;
+      }
+    }
+    if (!wordSection.hidden) {
+      renderWords();
+      renderQuizCurrent();
+    }
+    if (peekModal && !peekModal.hidden) renderPeekWindow();
+    if (archModal && !archModal.hidden) openArchetypeModal();
+    if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
+    hideTooltip();
+  }
+
   function wordsFor(anon, filterStopWords) {
     const skip = filterStopWords !== false;
-    const key = (anon ? 'anon|' : 'plain|') + (skip ? '1|' : '0|') + readExtraNames().join(',');
+    const ver = current.anonVersion || 0;
+    const key = (anon ? `anon|v${ver}|` : 'plain|') + (skip ? '1|' : '0|') + readExtraNames().join(',');
     if (!current.wordsCache[key]) {
       current.wordsCache[key] = WhatsAppWords.analyze(
         current.result.messages,
         Object.assign(
           { filterStopWords: skip },
-          anon ? { senderMap: current.map, nameMap: ensureDetected() } : {}
+          anon ? { senderMap: activeSenderMap(), nameMap: ensureDetected() } : {}
         )
       );
     }
@@ -780,19 +859,14 @@
   if (extraNamesInput) {
     extraNamesInput.addEventListener('input', () => {
       if (!current) return;
-      current.detected = null;
-      current.wordsCache = {};
-      current.erasCache = {};
-      if (current.anon) {
-        renderGroupExtras();
-        if (!wordSection.hidden) {
-          renderWords();
-          renderQuizCurrent();
+      if (typeof WhatsAppAnonymizer !== 'undefined' && current.anonPlan) {
+        for (const extra of readExtraNames()) {
+          if (extra.length >= 2) {
+            WhatsAppAnonymizer.addCustomEntity(current.anonPlan, extra, 'person');
+          }
         }
-        if (peekModal && !peekModal.hidden) renderPeekWindow();
-        if (archModal && !archModal.hidden) openArchetypeModal();
-        if (wrappedModal && !wrappedModal.hidden) renderWrappedSlide();
       }
+      if (current.anon) refreshAnonViews();
     });
   }
 
@@ -876,6 +950,7 @@
       selectedYear: year,
       colors: current.colors,
       map: current.map,
+      anonPlan: current.anonPlan,
       anon: keepAnon,
       wordsOpen: keepWordsOpen,
       stripMode: keepStripMode,
@@ -891,6 +966,7 @@
     closePeek();
     closeArchetypeModal();
     closeWrapped();
+    closeAnonStudio();
     closeCardMenu();
 
     const fullResult = opts.fullResult || result;
@@ -922,6 +998,8 @@
       onThisDay,
       colors,
       map,
+      anonPlan: opts.anonPlan || null,
+      anonVersion: 0,
       anon,
       name,
       rawText,
@@ -1063,7 +1141,8 @@
       if (!current || lensPaused || document.hidden || resultSection.hidden) return;
       const modalOpen = (peekModal && !peekModal.hidden)
         || (archModal && !archModal.hidden)
-        || (wrappedModal && !wrappedModal.hidden);
+        || (wrappedModal && !wrappedModal.hidden)
+        || (anonModal && !anonModal.hidden);
       if (!modalOpen) {
         current.lensIndex = (current.lensIndex + 1) % LENS_COUNT;
         updateAnswerBubble(false, true);
@@ -1976,21 +2055,37 @@
     let hits = 0;
     const bySender = new Map();
 
-    // If spotlighting an anonymized "Person X" label, match messages from/mentioning them.
+    // If spotlighting an anonymized label (Person A, Place 1, Jordan, Riverton, etc.), match its real terms.
     let personTerms = null;
-    if (current.anon && /^Person [A-Z]+$/.test(word)) {
-      const senderMatches = new Set();
-      const textTerms = [];
-      for (const [real, lbl] of current.map) {
-        if (lbl === word) { senderMatches.add(real); textTerms.push(real); }
+    if (current.anon) {
+      const plan = ensureAnonPlan();
+      if (plan) {
+        const matchedEnt = plan.entities.find((ent) =>
+          WhatsAppAnonymizer.isEntityActive(plan, ent) &&
+          WhatsAppAnonymizer.getLabel(plan, ent).toLowerCase() === word.toLowerCase()
+        );
+        if (matchedEnt) {
+          const senderMatches = new Set(matchedEnt.senderKeys || []);
+          const textTerms = matchedEnt.terms.map((t) => t.text).filter((t) => t.length >= 2);
+          const re = textTerms.length
+            ? new RegExp('(?<![\\p{L}\\p{N}_])(' + textTerms.map(escapeRegExp).join('|') + ')(?![\\p{L}\\p{N}_])', 'iu')
+            : null;
+          personTerms = { senderMatches, re };
+        }
+      } else if (/^Person [A-Z]+$/.test(word)) {
+        const senderMatches = new Set();
+        const textTerms = [];
+        for (const [real, lbl] of current.map) {
+          if (lbl === word) { senderMatches.add(real); textTerms.push(real); }
+        }
+        for (const [real, lbl] of ensureDetected()) {
+          if (lbl === word) textTerms.push(real);
+        }
+        const re = textTerms.length
+          ? new RegExp('(?<![\\p{L}\\p{N}_])(' + textTerms.map(escapeRegExp).join('|') + ')(?![\\p{L}\\p{N}_])', 'iu')
+          : null;
+        personTerms = { senderMatches, re };
       }
-      for (const [real, lbl] of ensureDetected()) {
-        if (lbl === word) textTerms.push(real);
-      }
-      const re = textTerms.length
-        ? new RegExp('(?<![\\p{L}\\p{N}_])(' + textTerms.map(escapeRegExp).join('|') + ')(?![\\p{L}\\p{N}_])', 'iu')
-        : null;
-      personTerms = { senderMatches, re };
     }
 
     if (personTerms) {
@@ -2249,12 +2344,13 @@
 
   function erasFor(anon) {
     if (!WhatsAppWords.chatEras) return null;
-    const key = (anon ? 'anon|' : 'plain|') + readExtraNames().join(',');
+    const ver = current.anonVersion || 0;
+    const key = (anon ? `anon|v${ver}|` : 'plain|') + readExtraNames().join(',');
     if (!Object.prototype.hasOwnProperty.call(current.erasCache, key)) {
       current.erasCache[key] = WhatsAppWords.chatEras(
         current.result.messages,
         current.timestamps,
-        anon ? { senderMap: current.map, nameMap: ensureDetected() } : {}
+        anon ? { senderMap: activeSenderMap(), nameMap: ensureDetected() } : {}
       );
     }
     return current.erasCache[key];
@@ -2410,7 +2506,7 @@
         : [];
       const madPool = WhatsAppWords.madLibsCandidates
         ? shuffle(WhatsAppWords.madLibsCandidates(current.result.messages, {
-          senderMap: current.map,
+          senderMap: activeSenderMap(),
           nameMap: ensureDetected(),
         }))
         : [];
@@ -4561,6 +4657,863 @@
     ctx.fillStyle = '#8696a0';
     ctx.font = '400 22px "Space Grotesk", system-ui, sans-serif';
     ctx.fillText('counted locally in your browser · whatsapp message counter', 92, H - 96);
+  }
+
+  /* ========================================================================
+   * Anonymize & Export Studio Modal Controller
+   * ======================================================================== */
+
+  const ANON_CATS = [
+    { key: 'person',  label: 'People',   icon: '👤' },
+    { key: 'place',   label: 'Places',   icon: '📍' },
+    { key: 'org',     label: 'Orgs',     icon: '🏢' },
+    { key: 'contact', label: 'Contacts', icon: '📱' },
+    { key: 'file',    label: 'Files',    icon: '📎' },
+    { key: 'group',   label: 'Groups',   icon: '💬' },
+  ];
+
+  const anonStudio = {
+    tab: 'entities',       // 'entities' | 'suspects' | 'preview'
+    filterCat: 'all',
+    filterQuery: '',
+    diffLimit: 40,
+    diffOnly: true,
+    verifyQuery: '',
+    lastAudit: null,
+    editingAliasId: null,
+  };
+
+  function getAnonymizedExportText() {
+    if (!current) return '';
+    if (typeof WhatsAppAnonymizer !== 'undefined') {
+      const plan = ensureAnonPlan();
+      if (plan) return WhatsAppAnonymizer.exportText(current.result, plan);
+    }
+    const opts = current.anon ? { senderMap: current.map, nameMap: ensureDetected() } : {};
+    return WhatsAppParser.toText(current.result, opts);
+  }
+
+  function downloadAnonymizedExport() {
+    if (!current) return;
+    const text = getAnonymizedExportText();
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const yearTag = current.selectedYear ? '-' + current.selectedYear : '';
+    const base = current.anon ? 'anonymized-chat' : (current.name || 'chat').replace(/\.(txt|zip)$/i, '');
+    a.download = base + yearTag + '.txt';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function openAnonStudio(initialTab) {
+    if (!current || !anonModal || typeof WhatsAppAnonymizer === 'undefined') return;
+    ensureAnonPlan();
+    if (initialTab) anonStudio.tab = initialTab;
+    anonStudio.diffLimit = 40;
+    anonStudio.editingAliasId = null;
+    anonModal.hidden = false;
+    renderAnonStudio(true);
+  }
+
+  function closeAnonStudio() {
+    if (anonModal) anonModal.hidden = true;
+  }
+
+  function setAnonTab(tab) {
+    anonStudio.tab = tab;
+    if (anonTabEntities) {
+      anonTabEntities.classList.toggle('active', tab === 'entities');
+      anonTabEntities.setAttribute('aria-selected', String(tab === 'entities'));
+    }
+    if (anonTabSuspects) {
+      anonTabSuspects.classList.toggle('active', tab === 'suspects');
+      anonTabSuspects.setAttribute('aria-selected', String(tab === 'suspects'));
+    }
+    if (anonTabPreview) {
+      anonTabPreview.classList.toggle('active', tab === 'preview');
+      anonTabPreview.setAttribute('aria-selected', String(tab === 'preview'));
+    }
+    if (anonEntitiesPane) anonEntitiesPane.hidden = tab !== 'entities';
+    if (anonSuspectsPane) anonSuspectsPane.hidden = tab !== 'suspects';
+    if (anonPreviewPane) anonPreviewPane.hidden = tab !== 'preview';
+    renderAnonActivePane();
+  }
+
+  function onAnonPlanMutated(reAudit) {
+    if (reAudit !== false) anonStudio.lastAudit = null;
+    if (current && current.anon) refreshAnonViews();
+    renderAnonStudio(reAudit !== false);
+  }
+
+  function ensureStudioAudit() {
+    if (!current) return null;
+    const plan = ensureAnonPlan();
+    if (!plan) return null;
+    if (!anonStudio.lastAudit) {
+      anonStudio.lastAudit = WhatsAppAnonymizer.auditLeaks(current.result, plan);
+    }
+    return anonStudio.lastAudit;
+  }
+
+  function renderAnonStudio(refreshAudit) {
+    if (!current || !anonModal || anonModal.hidden) return;
+    const plan = ensureAnonPlan();
+    if (!plan) return;
+    if (refreshAudit) anonStudio.lastAudit = null;
+    const audit = ensureStudioAudit();
+
+    // Header subtitle
+    if (anonModalSub && audit) {
+      const s = audit.stats;
+      const scope = current.selectedYear ? ` (${current.selectedYear})` : '';
+      anonModalSub.textContent = `${s.activeEntities} active rules · ${numberFmt.format(s.totalReplacements)} replacements across ${numberFmt.format(s.messagesChanged)} messages${scope} · 100% local`;
+    }
+
+    // Mode toggle buttons
+    const isReal = plan.mode === 'realistic';
+    if (anonModeTyped) {
+      anonModeTyped.classList.toggle('active', !isReal);
+      anonModeTyped.setAttribute('aria-selected', String(!isReal));
+    }
+    if (anonModeRealistic) {
+      anonModeRealistic.classList.toggle('active', isReal);
+      anonModeRealistic.setAttribute('aria-selected', String(isReal));
+    }
+    if (anonRerollBtn) anonRerollBtn.hidden = !isReal;
+
+    // Category master toggle pills
+    if (anonCatToggles) {
+      anonCatToggles.textContent = '';
+      const counts = {};
+      for (const ent of plan.entities) counts[ent.type] = (counts[ent.type] || 0) + 1;
+      for (const c of ANON_CATS) {
+        const cnt = counts[c.key] || 0;
+        const on = plan.categories[c.key] !== false;
+        const lbl = document.createElement('label');
+        lbl.className = `anon-cat-pill cat-${c.key}` + (on ? '' : ' off');
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = on;
+        cb.addEventListener('change', () => {
+          WhatsAppAnonymizer.setCategoryEnabled(plan, c.key, cb.checked);
+          onAnonPlanMutated(true);
+        });
+        const dot = document.createElement('span');
+        dot.className = 'cat-dot';
+        const txt = document.createElement('span');
+        txt.textContent = `${c.icon} ${c.label}`;
+        const num = document.createElement('span');
+        num.className = 'cat-cnt';
+        num.textContent = `(${cnt})`;
+        lbl.append(cb, dot, txt, num);
+        anonCatToggles.appendChild(lbl);
+      }
+    }
+
+    // Suspects badge
+    const unreviewed = plan.suspects.filter((s) => !s.dismissed).length;
+    if (anonSuspectsBadge) {
+      anonSuspectsBadge.hidden = unreviewed === 0;
+      anonSuspectsBadge.textContent = String(unreviewed);
+    }
+
+    // Footer privacy status pill
+    if (anonStatusPill && audit) {
+      anonStatusPill.className = `anon-status-pill ${audit.status}`;
+      const highCnt = audit.findings.filter((f) => f.severity === 'high').length;
+      if (highCnt > 0) {
+        anonStatusPill.textContent = `⚠️ ${highCnt} potential leak${highCnt === 1 ? '' : 's'} detected · Score ${audit.score}/100`;
+      } else if (unreviewed > 0) {
+        anonStatusPill.textContent = `👀 ${unreviewed} proper noun${unreviewed === 1 ? '' : 's'} to review · Score ${audit.score}/100`;
+      } else {
+        anonStatusPill.textContent = `✅ Leak check clean · Score ${audit.score}/100 · saves as anonymized-chat.txt`;
+      }
+    }
+
+    setAnonTab(anonStudio.tab);
+  }
+
+  function renderAnonActivePane() {
+    if (anonStudio.tab === 'entities') renderAnonEntities();
+    else if (anonStudio.tab === 'suspects') renderAnonSuspects();
+    else renderAnonPreview();
+  }
+
+  function renderAnonAddTargets(plan) {
+    if (!anonAddTarget) return;
+    const prev = anonAddTarget.value;
+    anonAddTarget.textContent = '';
+
+    const grpNew = document.createElement('optgroup');
+    grpNew.label = 'Add as new entity';
+    for (const c of ANON_CATS) {
+      const opt = document.createElement('option');
+      opt.value = 'new:' + c.key;
+      opt.textContent = `${c.icon} New ${c.label.replace(/s$/, '')}`;
+      grpNew.appendChild(opt);
+    }
+    anonAddTarget.appendChild(grpNew);
+
+    const people = plan.entities.filter((e) => e.type === 'person' && !e.patternRe);
+    if (people.length) {
+      const grpMerge = document.createElement('optgroup');
+      grpMerge.label = 'Add as nickname / alias of…';
+      for (const p of people) {
+        const opt = document.createElement('option');
+        opt.value = 'alias:' + p.id;
+        opt.textContent = `↳ ${WhatsAppAnonymizer.getLabel(plan, p)} (${p.primary})`;
+        grpMerge.appendChild(opt);
+      }
+      anonAddTarget.appendChild(grpMerge);
+    }
+
+    if (prev && Array.from(anonAddTarget.options).some((o) => o.value === prev)) {
+      anonAddTarget.value = prev;
+    }
+  }
+
+  function renderAnonEntities() {
+    const plan = ensureAnonPlan();
+    if (!plan || !anonEntityList) return;
+
+    renderAnonAddTargets(plan);
+
+    // Filter category pills
+    if (anonFilterCats) {
+      anonFilterCats.textContent = '';
+      const opts = [{ key: 'all', label: 'All' }].concat(ANON_CATS.map((c) => ({ key: c.key, label: c.label })));
+      for (const o of opts) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pill-btn' + (anonStudio.filterCat === o.key ? ' active' : '');
+        btn.textContent = o.label;
+        btn.addEventListener('click', () => {
+          anonStudio.filterCat = o.key;
+          renderAnonEntities();
+        });
+        anonFilterCats.appendChild(btn);
+      }
+    }
+
+    const q = anonStudio.filterQuery.trim().toLowerCase();
+    const list = plan.entities.filter((ent) => {
+      if (anonStudio.filterCat !== 'all' && ent.type !== anonStudio.filterCat) return false;
+      if (!q) return true;
+      const lbl = WhatsAppAnonymizer.getLabel(plan, ent).toLowerCase();
+      return ent.primary.toLowerCase().includes(q)
+        || lbl.includes(q)
+        || ent.terms.some((t) => t.text.toLowerCase().includes(q));
+    });
+
+    anonEntityList.textContent = '';
+    if (!list.length) {
+      const empty = document.createElement('div');
+      empty.className = 'anon-empty';
+      empty.textContent = q
+        ? `No detected entities match “${anonStudio.filterQuery}”. Add it above to scrub it!`
+        : 'No detected entities in this category yet.';
+      anonEntityList.appendChild(empty);
+      return;
+    }
+
+    const mergeTargets = plan.entities.filter((e) => !e.patternRe);
+
+    for (const ent of list) {
+      const active = WhatsAppAnonymizer.isEntityActive(plan, ent);
+      const row = document.createElement('div');
+      row.className = `anon-entity cat-${ent.type}` + (active ? '' : ' disabled');
+
+      // Top line: checkbox, terms/aliases, arrow, label input, count
+      const top = document.createElement('div');
+      top.className = 'anon-entity-top';
+
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.className = 'anon-entity-check';
+      cb.checked = ent.enabled;
+      cb.title = ent.enabled ? 'Scrubbing enabled' : 'Disabled (will NOT be replaced)';
+      cb.addEventListener('change', () => {
+        WhatsAppAnonymizer.toggleEntity(plan, ent.id, cb.checked);
+        onAnonPlanMutated(true);
+      });
+
+      const termsWrap = document.createElement('div');
+      termsWrap.className = 'anon-terms';
+
+      if (ent.patternRe) {
+        const chip = document.createElement('span');
+        chip.className = 'anon-term-chip';
+        chip.textContent = ent.primary;
+        termsWrap.appendChild(chip);
+      } else {
+        for (const t of ent.terms) {
+          const chip = document.createElement('span');
+          chip.className = 'anon-term-chip' + (ent.isSender && t.text === ent.primary ? ' sender-chip' : '');
+          chip.textContent = t.text;
+          if (ent.terms.length > 1 || ent.isSender) {
+            const rm = document.createElement('button');
+            rm.type = 'button';
+            rm.className = 'anon-term-remove';
+            rm.textContent = '×';
+            rm.title = `Stop matching “${t.text}”`;
+            rm.addEventListener('click', () => {
+              WhatsAppAnonymizer.removeAlias(plan, ent.id, t.text);
+              onAnonPlanMutated(true);
+            });
+            chip.appendChild(rm);
+          }
+          termsWrap.appendChild(chip);
+        }
+
+        if (anonStudio.editingAliasId === ent.id) {
+          const inlineForm = document.createElement('form');
+          inlineForm.className = 'anon-alias-inline';
+          const inp = document.createElement('input');
+          inp.type = 'text';
+          inp.placeholder = 'nickname…';
+          inp.autocomplete = 'off';
+          const okBtn = document.createElement('button');
+          okBtn.type = 'submit';
+          okBtn.className = 'pill-action';
+          okBtn.textContent = 'Add';
+          inlineForm.addEventListener('submit', (ev) => {
+            ev.preventDefault();
+            const val = inp.value.trim();
+            anonStudio.editingAliasId = null;
+            if (val.length >= 2) {
+              WhatsAppAnonymizer.addAlias(plan, ent.id, val);
+              onAnonPlanMutated(true);
+            } else {
+              renderAnonEntities();
+            }
+          });
+          inlineForm.append(inp, okBtn);
+          termsWrap.appendChild(inlineForm);
+          setTimeout(() => inp.focus(), 0);
+        } else {
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'anon-alias-btn';
+          addBtn.textContent = '+ alias';
+          addBtn.title = 'Add a nickname or alternate spelling that maps to this same label';
+          addBtn.addEventListener('click', () => {
+            anonStudio.editingAliasId = ent.id;
+            renderAnonEntities();
+          });
+          termsWrap.appendChild(addBtn);
+        }
+      }
+
+      const arrow = document.createElement('span');
+      arrow.className = 'anon-arrow';
+      arrow.textContent = '→';
+
+      const labelInp = document.createElement('input');
+      labelInp.type = 'text';
+      labelInp.className = 'anon-label-input';
+      labelInp.value = ent.customLabel || '';
+      labelInp.placeholder = plan.mode === 'realistic' ? ent.fakeLabel : ent.typedLabel;
+      labelInp.title = 'Custom replacement label (leave blank for automatic)';
+      labelInp.addEventListener('change', () => {
+        WhatsAppAnonymizer.setEntityCustomLabel(plan, ent.id, labelInp.value);
+        onAnonPlanMutated(true);
+      });
+
+      const countPill = document.createElement('span');
+      countPill.className = 'anon-count-pill';
+      countPill.textContent = `×${numberFmt.format(ent.count)}`;
+
+      top.append(cb, termsWrap, arrow, labelInp, countPill);
+
+      // Meta line: sample snippet + category selector + merge selector
+      const meta = document.createElement('div');
+      meta.className = 'anon-entity-meta';
+
+      const sample = document.createElement('span');
+      sample.className = 'anon-sample';
+      if (ent.samples && ent.samples.length) {
+        const s0 = ent.samples[0];
+        sample.textContent = s0.sender ? `${s0.sender}: “${s0.text}”` : `“${s0.text}”`;
+        sample.title = sample.textContent;
+      } else {
+        sample.textContent = ent.isSender ? 'Chat participant' : `Detected via ${ent.source}`;
+      }
+
+      const controls = document.createElement('div');
+      controls.className = 'anon-entity-controls';
+
+      if (!ent.patternRe) {
+        // Category dropdown
+        const catSel = document.createElement('select');
+        catSel.className = 'anon-select anon-select-xs';
+        catSel.title = 'Entity category';
+        for (const c of ANON_CATS) {
+          const opt = document.createElement('option');
+          opt.value = c.key;
+          opt.textContent = `${c.icon} ${c.label.replace(/s$/, '')}`;
+          if (c.key === ent.type) opt.selected = true;
+          catSel.appendChild(opt);
+        }
+        catSel.addEventListener('change', () => {
+          WhatsAppAnonymizer.setEntityType(plan, ent.id, catSel.value);
+          onAnonPlanMutated(true);
+        });
+        controls.appendChild(catSel);
+
+        // Merge into another entity (great for folding nicknames or @handles into a Person)
+        const candidates = mergeTargets.filter((m) => m.id !== ent.id && (m.type === ent.type || m.type === 'person'));
+        if (candidates.length) {
+          const mergeSel = document.createElement('select');
+          mergeSel.className = 'anon-select anon-select-xs';
+          mergeSel.title = 'Merge this entity into another entity so they share one label';
+          const defOpt = document.createElement('option');
+          defOpt.value = '';
+          defOpt.textContent = 'Merge into…';
+          mergeSel.appendChild(defOpt);
+          for (const m of candidates.slice(0, 40)) {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = `${WhatsAppAnonymizer.getLabel(plan, m)} (${m.primary})`;
+            mergeSel.appendChild(opt);
+          }
+          mergeSel.addEventListener('change', () => {
+            if (!mergeSel.value) return;
+            WhatsAppAnonymizer.mergeEntities(plan, ent.id, mergeSel.value);
+            onAnonPlanMutated(true);
+          });
+          controls.appendChild(mergeSel);
+        }
+      }
+
+      meta.append(sample, controls);
+      row.append(top, meta);
+      anonEntityList.appendChild(row);
+    }
+  }
+
+  function renderAnonSuspects() {
+    const plan = ensureAnonPlan();
+    if (!plan || !anonSuspectsList) return;
+    anonSuspectsList.textContent = '';
+
+    const active = plan.suspects.filter((s) => !s.dismissed);
+    if (!active.length) {
+      const empty = document.createElement('div');
+      empty.className = 'anon-empty';
+      empty.textContent = '✅ All clear! No unrecognised mid-sentence proper nouns left to review.';
+      anonSuspectsList.appendChild(empty);
+      return;
+    }
+
+    const people = plan.entities.filter((e) => e.type === 'person' && !e.patternRe);
+
+    for (const s of active) {
+      const row = document.createElement('div');
+      row.className = 'anon-suspect-row';
+
+      const info = document.createElement('div');
+      info.className = 'anon-suspect-info';
+
+      const title = document.createElement('div');
+      title.className = 'anon-suspect-term';
+      const termSpan = document.createElement('span');
+      termSpan.textContent = s.term;
+      const cnt = document.createElement('span');
+      cnt.className = 'anon-count-pill';
+      cnt.textContent = `×${s.count}`;
+      title.append(termSpan, cnt);
+
+      const sample = document.createElement('span');
+      sample.className = 'anon-sample';
+      if (s.samples && s.samples.length) {
+        const s0 = s.samples[0];
+        sample.textContent = s0.sender ? `${s0.sender}: “${s0.text}”` : `“${s0.text}”`;
+        sample.title = sample.textContent;
+      }
+
+      info.append(title, sample);
+
+      const actions = document.createElement('div');
+      actions.className = 'anon-suspect-actions';
+
+      const mkBtn = (label, cat) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pill-action' + (s.suggestedType === cat ? ' accent-pill' : '');
+        b.textContent = label;
+        b.addEventListener('click', () => {
+          WhatsAppAnonymizer.promoteSuspect(plan, s.term, cat);
+          onAnonPlanMutated(true);
+        });
+        return b;
+      };
+
+      actions.append(mkBtn('+ Person', 'person'), mkBtn('+ Place', 'place'), mkBtn('+ Org', 'org'));
+
+      if (people.length) {
+        const sel = document.createElement('select');
+        sel.className = 'anon-select anon-select-xs';
+        const def = document.createElement('option');
+        def.value = '';
+        def.textContent = 'Alias of…';
+        sel.appendChild(def);
+        for (const p of people.slice(0, 30)) {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${WhatsAppAnonymizer.getLabel(plan, p)} (${p.primary})`;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener('change', () => {
+          if (!sel.value) return;
+          WhatsAppAnonymizer.promoteSuspect(plan, s.term, { mergeInto: sel.value });
+          onAnonPlanMutated(true);
+        });
+        actions.appendChild(sel);
+      }
+
+      const ign = document.createElement('button');
+      ign.type = 'button';
+      ign.className = 'text-btn';
+      ign.textContent = 'Ignore';
+      ign.addEventListener('click', () => {
+        WhatsAppAnonymizer.promoteSuspect(plan, s.term, 'dismiss');
+        onAnonPlanMutated(true);
+      });
+      actions.appendChild(ign);
+
+      row.append(info, actions);
+      anonSuspectsList.appendChild(row);
+    }
+  }
+
+  function renderAnonPreview() {
+    const plan = ensureAnonPlan();
+    if (!plan || !current) return;
+    const audit = ensureStudioAudit();
+
+    // 1. Privacy Shield audit card
+    if (anonAuditCard && audit) {
+      anonAuditCard.textContent = '';
+      const top = document.createElement('div');
+      top.className = 'anon-audit-top';
+
+      const ring = document.createElement('div');
+      ring.className = `anon-score-ring ${audit.status}`;
+      ring.textContent = `${audit.score}/100`;
+
+      const sum = document.createElement('div');
+      sum.className = 'anon-audit-summary';
+      const t = document.createElement('div');
+      t.className = 'anon-audit-title';
+      if (audit.status === 'clean') t.textContent = '✅ Strong anonymization — no obvious PII leaks found';
+      else if (audit.status === 'review') t.textContent = '👀 Almost spotless — a few unreviewed proper nouns remain';
+      else t.textContent = '⚠️ Potential leaks detected in the anonymized output';
+
+      const st = document.createElement('div');
+      st.className = 'anon-audit-stats';
+      const b = audit.stats.byType;
+      const parts = [];
+      if (b.person) parts.push(`${numberFmt.format(b.person)} people`);
+      if (b.place) parts.push(`${numberFmt.format(b.place)} places`);
+      if (b.org) parts.push(`${numberFmt.format(b.org)} orgs`);
+      if (b.contact) parts.push(`${numberFmt.format(b.contact)} contacts`);
+      if (b.file) parts.push(`${numberFmt.format(b.file)} files`);
+      if (b.group) parts.push(`${numberFmt.format(b.group)} group names`);
+      st.textContent = parts.length
+        ? `Scrubbed: ${parts.join(' · ')}`
+        : 'No replacements active yet.';
+
+      sum.append(t, st);
+      top.append(ring, sum);
+      anonAuditCard.appendChild(top);
+
+      if (audit.findings.length) {
+        const fWrap = document.createElement('div');
+        fWrap.className = 'anon-findings';
+        for (const f of audit.findings.slice(0, 10)) {
+          const row = document.createElement('div');
+          row.className = 'anon-finding-row';
+          const txt = document.createElement('span');
+          txt.textContent = `Residual ${f.kind.replace('_', ' ')}: “${f.term}” (×${f.count})`;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'pill-action accent-pill';
+          btn.textContent = '+ Scrub now';
+          btn.addEventListener('click', () => {
+            const cat = f.kind === 'postcode' ? 'place' : f.kind === 'sender_fragment' ? 'person' : 'contact';
+            WhatsAppAnonymizer.addCustomEntity(plan, f.term, cat);
+            onAnonPlanMutated(true);
+          });
+          row.append(txt, btn);
+          fWrap.appendChild(row);
+        }
+        anonAuditCard.appendChild(fWrap);
+      }
+    }
+
+    // 2. Verify-a-word search result
+    renderAnonVerifyResult(plan);
+
+    // 3. Before / After message diff list
+    if (!anonDiffList) return;
+    anonDiffList.textContent = '';
+
+    const entries = current.result.entries;
+    const sMap = WhatsAppAnonymizer.senderLabelMap(plan);
+    const matches = [];
+    const maxScan = entries.length;
+    const targetCount = anonStudio.diffLimit + 1;
+
+    for (let i = 0; i < maxScan && matches.length < targetCount; i++) {
+      const e = entries[i];
+      const diff = WhatsAppAnonymizer.anonymizeStringWithDiff(e.text, plan);
+      const hasBodyChange = diff.segments.some((seg) => seg.replaced);
+      const anonSender = e.kind === 'message' ? (sMap.get(e.sender) || e.sender) : null;
+      const hasSenderChange = e.kind === 'message' && anonSender !== e.sender;
+      if (anonStudio.diffOnly && !hasBodyChange && !hasSenderChange) continue;
+      matches.push({ entry: e, diff, anonSender });
+    }
+
+    const hasMore = matches.length > anonStudio.diffLimit;
+    const shown = matches.slice(0, anonStudio.diffLimit);
+
+    if (anonPreviewCount) {
+      anonPreviewCount.textContent = anonStudio.diffOnly
+        ? `Showing ${shown.length}${hasMore ? '+' : ''} redacted lines (Before → After)`
+        : `Showing first ${shown.length} lines (Before → After)`;
+    }
+    if (anonDiffMoreBtn) anonDiffMoreBtn.hidden = !hasMore;
+
+    if (!shown.length) {
+      const empty = document.createElement('div');
+      empty.className = 'anon-empty';
+      empty.textContent = 'No redacted messages match this filter.';
+      anonDiffList.appendChild(empty);
+      return;
+    }
+
+    for (const item of shown) {
+      const e = item.entry;
+      const card = document.createElement('div');
+      card.className = 'anon-diff-card';
+
+      const before = document.createElement('div');
+      before.className = 'anon-diff-col before';
+      const bHead = document.createElement('span');
+      bHead.className = 'anon-diff-sender';
+      bHead.textContent = e.kind === 'message' ? `${e.sender} · ${e.ts}` : `System · ${e.ts}`;
+      before.appendChild(bHead);
+
+      const after = document.createElement('div');
+      after.className = 'anon-diff-col after';
+      const aHead = document.createElement('span');
+      aHead.className = 'anon-diff-sender';
+      aHead.textContent = e.kind === 'message' ? `${item.anonSender} · ${e.ts}` : `System · ${e.ts}`;
+      after.appendChild(aHead);
+
+      for (const seg of item.diff.segments) {
+        if (seg.replaced) {
+          const origMark = document.createElement('span');
+          origMark.className = 'anon-mark-orig';
+          origMark.textContent = seg.original;
+          before.appendChild(origMark);
+
+          const newMark = document.createElement('span');
+          newMark.className = `anon-mark cat-${seg.type}`;
+          newMark.textContent = seg.text;
+          newMark.title = `Replaced “${seg.original}” (${seg.type})`;
+          after.appendChild(newMark);
+        } else {
+          before.appendChild(document.createTextNode(seg.text));
+          after.appendChild(document.createTextNode(seg.text));
+        }
+      }
+
+      card.append(before, after);
+      anonDiffList.appendChild(card);
+    }
+  }
+
+  function renderAnonVerifyResult(plan) {
+    if (!anonVerifyResult || !current) return;
+    const q = anonStudio.verifyQuery.trim();
+    if (q.length < 2) {
+      anonVerifyResult.hidden = true;
+      return;
+    }
+    const qLo = q.toLowerCase();
+    const sMap = WhatsAppAnonymizer.senderLabelMap(plan);
+    let hits = 0;
+    const snippets = [];
+    for (const e of current.result.entries) {
+      const line = e.kind === 'message'
+        ? `${sMap.get(e.sender) || e.sender}: ${WhatsAppAnonymizer.anonymizeString(e.text, plan)}`
+        : WhatsAppAnonymizer.anonymizeString(e.text, plan);
+      if (line.toLowerCase().includes(qLo)) {
+        hits++;
+        if (snippets.length < 3) snippets.push(line.slice(0, 140));
+      }
+    }
+
+    anonVerifyResult.hidden = false;
+    anonVerifyResult.className = 'anon-verify-result ' + (hits === 0 ? 'ok' : 'found');
+    anonVerifyResult.textContent = '';
+
+    const head = document.createElement('div');
+    head.className = 'anon-verify-head';
+    const msg = document.createElement('span');
+    if (hits === 0) {
+      msg.textContent = `✅ 0 mentions of “${q}” remain in the anonymized export!`;
+      head.appendChild(msg);
+      anonVerifyResult.appendChild(head);
+    } else {
+      msg.textContent = `⚠️ “${q}” still appears in ${numberFmt.format(hits)} anonymized line${hits === 1 ? '' : 's'}`;
+      const btns = document.createElement('div');
+      btns.className = 'anon-suspect-actions';
+      for (const [lbl, cat] of [['+ Scrub as Person', 'person'], ['+ Place', 'place'], ['+ Org', 'org']]) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'pill-action accent-pill';
+        b.textContent = lbl;
+        b.addEventListener('click', () => {
+          WhatsAppAnonymizer.addCustomEntity(plan, q, cat);
+          onAnonPlanMutated(true);
+        });
+        btns.appendChild(b);
+      }
+      head.append(msg, btns);
+      anonVerifyResult.appendChild(head);
+      for (const sn of snippets) {
+        const p = document.createElement('div');
+        p.className = 'anon-sample';
+        p.textContent = sn;
+        anonVerifyResult.appendChild(p);
+      }
+    }
+  }
+
+  // Bind Studio modal events
+  if (anonCloseBtn) anonCloseBtn.addEventListener('click', closeAnonStudio);
+  if (anonModal) {
+    anonModal.addEventListener('click', (e) => {
+      if (e.target === anonModal) closeAnonStudio();
+    });
+  }
+  if (anonModeTyped) {
+    anonModeTyped.addEventListener('click', () => {
+      const plan = ensureAnonPlan();
+      if (!plan) return;
+      WhatsAppAnonymizer.setMode(plan, 'typed');
+      onAnonPlanMutated(true);
+    });
+  }
+  if (anonModeRealistic) {
+    anonModeRealistic.addEventListener('click', () => {
+      const plan = ensureAnonPlan();
+      if (!plan) return;
+      WhatsAppAnonymizer.setMode(plan, 'realistic');
+      onAnonPlanMutated(true);
+    });
+  }
+  if (anonRerollBtn) {
+    anonRerollBtn.addEventListener('click', () => {
+      const plan = ensureAnonPlan();
+      if (!plan) return;
+      WhatsAppAnonymizer.rerollFakeNames(plan);
+      onAnonPlanMutated(true);
+    });
+  }
+  if (anonTabEntities) anonTabEntities.addEventListener('click', () => setAnonTab('entities'));
+  if (anonTabSuspects) anonTabSuspects.addEventListener('click', () => setAnonTab('suspects'));
+  if (anonTabPreview) anonTabPreview.addEventListener('click', () => setAnonTab('preview'));
+  if (anonStatusPill) {
+    anonStatusPill.addEventListener('click', () => {
+      const plan = ensureAnonPlan();
+      const unrev = plan ? plan.suspects.filter((s) => !s.dismissed).length : 0;
+      const audit = ensureStudioAudit();
+      const hasHigh = audit && audit.findings.some((f) => f.severity === 'high');
+      setAnonTab(hasHigh ? 'preview' : (unrev > 0 ? 'suspects' : 'preview'));
+    });
+  }
+  if (anonAddForm) {
+    anonAddForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const plan = ensureAnonPlan();
+      if (!plan || !anonAddInput) return;
+      const raw = anonAddInput.value.trim();
+      if (raw.length < 2) return;
+      const target = anonAddTarget ? anonAddTarget.value : 'new:person';
+      const items = raw.split(/[,;\n]/).map((s) => s.trim()).filter((s) => s.length >= 2);
+      for (const item of items) {
+        if (target.startsWith('alias:')) {
+          WhatsAppAnonymizer.addAlias(plan, target.slice(6), item);
+        } else {
+          const cat = target.startsWith('new:') ? target.slice(4) : 'person';
+          WhatsAppAnonymizer.addCustomEntity(plan, item, cat);
+        }
+      }
+      anonAddInput.value = '';
+      onAnonPlanMutated(true);
+    });
+  }
+  if (anonEntityFilter) {
+    anonEntityFilter.addEventListener('input', () => {
+      anonStudio.filterQuery = anonEntityFilter.value;
+      renderAnonEntities();
+    });
+  }
+  if (anonVerifyInput) {
+    anonVerifyInput.addEventListener('input', () => {
+      anonStudio.verifyQuery = anonVerifyInput.value;
+      const plan = ensureAnonPlan();
+      if (plan) renderAnonVerifyResult(plan);
+    });
+  }
+  if (anonDiffOnlyToggle) {
+    anonDiffOnlyToggle.addEventListener('change', () => {
+      anonStudio.diffOnly = anonDiffOnlyToggle.checked;
+      anonStudio.diffLimit = 40;
+      renderAnonPreview();
+    });
+  }
+  if (anonDiffMoreBtn) {
+    anonDiffMoreBtn.addEventListener('click', () => {
+      anonStudio.diffLimit += 50;
+      renderAnonPreview();
+    });
+  }
+  if (anonDownloadBtn) {
+    anonDownloadBtn.addEventListener('click', () => {
+      downloadAnonymizedExport();
+      const orig = anonDownloadBtn.textContent;
+      anonDownloadBtn.textContent = '✓ Downloaded anonymized-chat.txt';
+      setTimeout(() => { anonDownloadBtn.textContent = orig; }, 2000);
+    });
+  }
+  if (anonCopyBtn) {
+    anonCopyBtn.addEventListener('click', async () => {
+      const text = getAnonymizedExportText();
+      const orig = anonCopyBtn.textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        anonCopyBtn.textContent = 'Copied ✓';
+      } catch (_) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        anonCopyBtn.textContent = 'Copied ✓';
+      }
+      setTimeout(() => { anonCopyBtn.textContent = orig; }, 1800);
+    });
   }
 
   let resizeTimer = null;

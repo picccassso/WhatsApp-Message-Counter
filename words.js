@@ -332,13 +332,14 @@
       nameMap: opts.nameMap,
     });
 
-    // Build pool of interesting candidate vocabulary words (skipping stop words, short words, and "Person X")
+    // Build pool of interesting candidate vocabulary words (skipping stop words, short words, and anonymized labels)
+    const isAnonLabel = (w) => /^Person [A-Z]+$|^(?:Place|Org|Group|Address|Postcode) \d+$|^\[.+\]$|^@user\d+$/.test(w);
     const vocab = [];
     const seen = new Set();
     const addVocab = (w) => {
       if (!w || w.length < 4) return;
       if (STOP_WORDS.has(w)) return;
-      if (/^Person [A-Z]+$/.test(w)) return;
+      if (isAnonLabel(w)) return;
       if (seen.has(w)) return;
       seen.add(w);
       vocab.push(w);
@@ -356,7 +357,7 @@
         if (isNonProse(m)) continue;
         for (const raw of tokenize(m.text)) {
           const t = nameLabels ? nameLabels.get(raw) || raw : raw;
-          if (t.length < 4 || STOP_WORDS.has(t) || /^Person [A-Z]+$/.test(t)) continue;
+          if (t.length < 4 || STOP_WORDS.has(t) || isAnonLabel(t)) continue;
           freq.set(t, (freq.get(t) || 0) + 1);
         }
       }

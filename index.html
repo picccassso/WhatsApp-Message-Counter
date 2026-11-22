@@ -181,9 +181,9 @@
         <label class="switch">
           <input type="checkbox" id="anonToggle">
           <span class="track" aria-hidden="true"></span>
-          <span>Anonymize names</span>
+          <span>Anonymize</span>
         </label>
-        <input type="text" id="extraNames" class="extra-names" hidden placeholder="also hide… e.g. Mum, Sam" aria-label="Extra names to anonymize inside texts (comma-separated)">
+        <input type="text" id="extraNames" class="extra-names" hidden placeholder="also hide… e.g. Mum, Sam, Bristol" aria-label="Extra names, places, or words to anonymize (comma-separated)">
         <label class="switch">
           <input type="checkbox" id="wordsToggle">
           <span class="track" aria-hidden="true"></span>
@@ -191,7 +191,7 @@
         </label>
         <div class="actions-end">
           <button type="button" id="wrappedBtn" class="again-btn accent-btn">✨ Wrapped</button>
-          <button type="button" id="exportBtn" class="again-btn" hidden>Export anonymized .txt</button>
+          <button type="button" id="exportBtn" class="again-btn">🛡️ Anonymize &amp; Export</button>
           <div class="card-menu-wrap">
             <button type="button" id="cardBtn" class="again-btn" aria-haspopup="menu" aria-expanded="false">Save card ▾</button>
             <div id="cardMenu" class="card-menu" role="menu" hidden>
@@ -272,6 +272,93 @@
     </div>
   </div>
 
+  <!-- Anonymize & Export Studio modal -->
+  <div id="anonModal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="anonModalTitle" hidden>
+    <div class="modal-card anon-card">
+      <div class="modal-head">
+        <div class="modal-head-text">
+          <span id="anonModalTitle" class="modal-title">🛡️ Anonymize &amp; Export Studio</span>
+          <span id="anonModalSub" class="modal-sub">Scrub names, places, orgs, contacts &amp; files — 100% locally in your browser</span>
+        </div>
+        <button type="button" id="anonCloseBtn" class="icon-close" aria-label="Close">×</button>
+      </div>
+
+      <div class="anon-toolbar">
+        <div class="anon-mode-row">
+          <span class="anon-toolbar-label">Replacement style</span>
+          <div class="anon-mode-group" role="tablist" aria-label="Replacement style">
+            <button type="button" id="anonModeTyped" class="pill-btn active" role="tab" aria-selected="true">Person A / Place 1</button>
+            <button type="button" id="anonModeRealistic" class="pill-btn" role="tab" aria-selected="false">Fake names (Jordan, Riverton)</button>
+          </div>
+          <button type="button" id="anonRerollBtn" class="pill-action" hidden title="Generate a fresh set of fake names &amp; places">🎲 Reroll</button>
+        </div>
+        <div id="anonCatToggles" class="anon-cats" aria-label="Categories to anonymize"></div>
+      </div>
+
+      <div class="anon-tabs-bar">
+        <div class="anon-tabs" role="tablist" aria-label="Studio views">
+          <button type="button" id="anonTabEntities" class="pill-btn active" role="tab" aria-selected="true">Detected Entities</button>
+          <button type="button" id="anonTabSuspects" class="pill-btn" role="tab" aria-selected="false">👀 Review Leaks <span id="anonSuspectsBadge" class="anon-badge" hidden>0</span></button>
+          <button type="button" id="anonTabPreview" class="pill-btn" role="tab" aria-selected="false">🔍 Preview &amp; Leak Check</button>
+        </div>
+      </div>
+
+      <div class="anon-body">
+        <!-- Pane 1: Detected & Custom Entities -->
+        <div id="anonEntitiesPane" class="anon-pane">
+          <form id="anonAddForm" class="anon-add-bar">
+            <input type="text" id="anonAddInput" class="anon-input" placeholder="Add a nickname, name, place, or word to hide…" autocomplete="off" spellcheck="false">
+            <select id="anonAddTarget" class="anon-select" aria-label="Category or person to merge into"></select>
+            <button type="submit" class="pill-action accent-pill">+ Add</button>
+          </form>
+
+          <div class="anon-filter-row">
+            <input type="search" id="anonEntityFilter" class="anon-input anon-input-sm" placeholder="Filter detected items…" autocomplete="off" spellcheck="false">
+            <div id="anonFilterCats" class="anon-filter-cats"></div>
+          </div>
+
+          <div id="anonEntityList" class="anon-entity-list"></div>
+        </div>
+
+        <!-- Pane 2: Review Potential Leaks (unrecognized capitalized words) -->
+        <div id="anonSuspectsPane" class="anon-pane" hidden>
+          <p class="anon-pane-note">Capitalized words found mid-sentence that weren't in our dictionaries (nicknames, local spots, pets, indie brands). Tag any identifying ones or merge them into a person.</p>
+          <div id="anonSuspectsList" class="anon-suspect-list"></div>
+        </div>
+
+        <!-- Pane 3: Live Before/After Diff & Leak Audit -->
+        <div id="anonPreviewPane" class="anon-pane" hidden>
+          <div id="anonAuditCard" class="anon-audit-card"></div>
+
+          <div class="anon-verify-wrap">
+            <div class="anon-verify-bar">
+              <input type="search" id="anonVerifyInput" class="anon-input" placeholder="Verify a word is gone… type a real name, town, or nickname" autocomplete="off" spellcheck="false">
+            </div>
+            <div id="anonVerifyResult" class="anon-verify-result" hidden></div>
+          </div>
+
+          <div class="anon-preview-head">
+            <span id="anonPreviewCount" class="anon-pane-note"></span>
+            <label class="mini-check">
+              <input type="checkbox" id="anonDiffOnlyToggle" checked>
+              <span>Redacted messages only</span>
+            </label>
+          </div>
+          <div id="anonDiffList" class="anon-diff-list"></div>
+          <button type="button" id="anonDiffMoreBtn" class="text-btn anon-more-btn" hidden>Show more messages</button>
+        </div>
+      </div>
+
+      <div class="peek-foot anon-foot">
+        <button type="button" id="anonStatusPill" class="anon-status-pill" title="Click to view leak check"></button>
+        <div class="anon-foot-actions">
+          <button type="button" id="anonCopyBtn" class="pill-action">Copy .txt</button>
+          <button type="button" id="anonDownloadBtn" class="pill-action accent-pill">⬇ Download anonymized .txt</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="dropOverlay" class="drop-overlay" hidden aria-hidden="true">
     <div class="drop-overlay-card">
       <span class="drop-overlay-title">Drop your WhatsApp export</span>
@@ -280,6 +367,7 @@
   </div>
 
   <script src="names.js"></script>
+  <script src="anonymizer.js"></script>
   <script src="parser.js"></script>
   <script src="words.js"></script>
   <script src="app.js"></script>
