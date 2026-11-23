@@ -568,7 +568,7 @@
   const RE_SENSITIVE_ID = /\b(?:\d{3}-\d{2}-\d{4}|[A-CEGHJ-PR-TW-Z]{2}\s?\d{2}\s?\d{2}\s?\d{2}\s?[A-D]|[A-Z]{2}\d{2}\s?(?:[A-Z0-9]{4}\s?){3,6}[A-Z0-9]{1,4}|\d{4}[\s-]\d{4}[\s-]\d{4}[\s-]\d{4}|\d{2}-\d{2}-\d{2}\s+\d{8})\b/g;
 
   // Protected WhatsApp boilerplate (never redacted so re-parsing stays 100% faithful)
-  const RE_WA_PROTECTED = /<Media omitted>|<This message was edited>|This message was deleted|You deleted this message|Messages and calls are end-to-end encrypted\.[^\n]*|\(file attached\)|<attached:[^>]+>/gi;
+  const RE_WA_PROTECTED = /<Media omitted>|<This message was edited>|This message was deleted|You deleted this message|Messages and calls are end-to-end encrypted\.[^\n]*|\(file attached\)|<attached:\s*/gi;
 
   // Group subject lines in WhatsApp system entries
   const RE_GROUP_SUBJECT_CHANGE = /(?:changed the subject|changed the group name)(?:\s+from\s+["“](.+?)["”])?\s+to\s+["“](.+?)["”]/i;
@@ -664,18 +664,49 @@
     return true;
   }
 
-  function seededPick(pool, index, seed, forbiddenLower) {
+  function seededPick(pool, index, seed, realWordsLower, usedLabelsLower, fallbackPrefix) {
     const len = pool.length;
-    if (!len) return 'Item ' + (index + 1);
+    const prefix = fallbackPrefix || 'Item';
+    const realSet = realWordsLower || new Set();
+    const usedSet = usedLabelsLower || realSet;
+    const isBlocked = (s) => {
+      const lo = s.toLowerCase();
+      return realSet.has(lo) || usedSet.has(lo);
+    };
+    if (!len) {
+      let n = index + 1;
+      while (isBlocked(prefix + ' ' + n)) n++;
+      const lbl = prefix + ' ' + n;
+      usedSet.add(lbl.toLowerCase());
+      return lbl;
+    }
     const start = ((index * 7 + (seed || 0) * 13) % len + len) % len;
+    // Pass 1: unused pool entry that never appears in the real chat
     for (let step = 0; step < len; step++) {
       const candidate = pool[(start + step) % len];
-      if (!forbiddenLower.has(candidate.toLowerCase())) {
-        forbiddenLower.add(candidate.toLowerCase());
+      if (!isBlocked(candidate)) {
+        usedSet.add(candidate.toLowerCase());
         return candidate;
       }
     }
-    return pool[start] + ' ' + (index + 1);
+    // Pass 2: pool exhausted — pick a base name that is NOT a real chat word, with a unique numeric suffix
+    for (let step = 0; step < len; step++) {
+      const base = pool[(start + step) % len];
+      if (realSet.has(base.toLowerCase())) continue;
+      for (let n = 2; n < 10000; n++) {
+        const numbered = base + ' ' + n;
+        if (!isBlocked(numbered)) {
+          usedSet.add(numbered.toLowerCase());
+          return numbered;
+        }
+      }
+    }
+    // Pass 3: every single pool word appeared in the chat — use a neutral safe fallback
+    let n = index + 1;
+    while (isBlocked(prefix + ' ' + n)) n++;
+    const fallback = prefix + ' ' + n;
+    usedSet.add(fallback.toLowerCase());
+    return fallback;
   }
 
   /* ========================================================================
@@ -1449,13 +1480,22 @@
    * ======================================================================== */
 
   function recomputeLabels(plan) {
-    // Forbidden words for realistic fake names = every real lowercase word in the chat
-    // + every custom label already chosen, so fake names NEVER collide with real text.
-    const forbidden = new Set(plan._lowerWords || []);
+    // Real words from the chat + entity terms + custom labels:
+    // fake names NEVER reuse any of these as a base name (even when pools overflow).
+    const realWords = new Set(plan._lowerWords || []);
     for (const ent of plan.entities) {
-      if (ent.customLabel) forbidden.add(ent.customLabel.toLowerCase());
-      for (const t of ent.terms) forbidden.add(t.text.toLowerCase());
+      if (ent.customLabel) realWords.add(ent.customLabel.toLowerCase());
+      for (const t of ent.terms) {
+        const lo = t.text.toLowerCase();
+        realWords.add(lo);
+        if (lo.includes(' ')) {
+          for (const part of lo.split(/\s+/)) {
+            if (part.length >= 2) realWords.add(part);
+          }
+        }
+      }
     }
+    const usedLabels = new Set();
 
     let personIdx = 0;
     let placeIdx = 0;
@@ -1475,13 +1515,13 @@
     for (const ent of plan.entities) {
       if (ent.type === 'person') {
         ent.typedLabel = letterLabel(personIdx);
-        ent.fakeLabel = seededPick(FAKE_PEOPLE, personIdx, plan.seed, forbidden);
+        ent.fakeLabel = seededPick(FAKE_PEOPLE, personIdx, plan.seed, realWords, usedLabels, 'Contact');
         personIdx++;
       } else if (ent.type === 'place') {
         if (ent.subType === 'address') {
           addressIdx++;
           ent.typedLabel = 'Address ' + addressIdx;
-          ent.fakeLabel = seededPick(FAKE_STREETS, addressIdx - 1, plan.seed, forbidden);
+          ent.fakeLabel = seededPick(FAKE_STREETS, addressIdx - 1, plan.seed, realWords, usedLabels, 'Address');
         } else if (ent.subType === 'postcode') {
           postcodeIdx++;
           ent.typedLabel = 'Postcode ' + postcodeIdx;
@@ -1497,16 +1537,16 @@
         } else {
           placeIdx++;
           ent.typedLabel = 'Place ' + placeIdx;
-          ent.fakeLabel = seededPick(FAKE_PLACES, placeIdx - 1, plan.seed, forbidden);
+          ent.fakeLabel = seededPick(FAKE_PLACES, placeIdx - 1, plan.seed, realWords, usedLabels, 'Town');
         }
       } else if (ent.type === 'org') {
         orgIdx++;
         ent.typedLabel = 'Org ' + orgIdx;
-        ent.fakeLabel = seededPick(FAKE_ORGS, orgIdx - 1, plan.seed, forbidden);
+        ent.fakeLabel = seededPick(FAKE_ORGS, orgIdx - 1, plan.seed, realWords, usedLabels, 'Company');
       } else if (ent.type === 'group') {
         groupIdx++;
         ent.typedLabel = 'Group ' + groupIdx;
-        ent.fakeLabel = seededPick(FAKE_GROUPS, groupIdx - 1, plan.seed, forbidden);
+        ent.fakeLabel = seededPick(FAKE_GROUPS, groupIdx - 1, plan.seed, realWords, usedLabels, 'Chat');
       } else if (ent.type === 'file') {
         if (ent.subType === 'wa_media_file') {
           ent.typedLabel = '[Media File]';
@@ -1730,22 +1770,47 @@
     const clean = String(termText || '').trim();
     if (clean.length < 2) return null;
     const lo = clean.toLowerCase();
-    // Check if already exists
+    const safeType = ['person', 'place', 'org', 'contact', 'file', 'group'].includes(type) ? type : 'person';
+    const wantCaseSensitive = Boolean(opts && opts.caseSensitive);
+    const requestedKind = opts && opts.kind;
+
+    // Check if already exists — make sure explicit user scrub actually activates it!
     for (const ent of plan.entities) {
-      if (ent.terms.some((t) => t.text.toLowerCase() === lo)) {
+      const matchedTerm = ent.terms.find((t) => t.text.toLowerCase() === lo);
+      if (matchedTerm) {
         ent.enabled = true;
+        // Clear auto-detected caseSensitive restriction when the user explicitly scrubs this term
+        if (!wantCaseSensitive && matchedTerm.caseSensitive) {
+          matchedTerm.caseSensitive = false;
+        }
+        // Allow upgrading a word rule to a literal (substring) rule when explicitly requested
+        if (requestedKind === 'literal' && matchedTerm.kind !== 'literal') {
+          matchedTerm.kind = 'literal';
+        }
+        // If the existing entity's category was disabled (or caller asked to retype), move or re-enable it
+        const catWasOff = plan.categories[ent.type] === false;
+        if ((catWasOff || (opts && opts.retype)) && !ent.isSender && ent.type !== safeType && plan.categories[safeType] !== false) {
+          setEntityType(plan, ent.id, safeType);
+        }
+        if (plan.categories[ent.type] === false) {
+          plan.categories[ent.type] = true;
+        }
+        for (const s of plan.suspects) {
+          if (s.term.toLowerCase() === lo) s.dismissed = true;
+        }
         plan._compiled = null;
+        recountSingleEntity(plan, ent);
         return ent;
       }
     }
-    const safeType = ['person', 'place', 'org', 'contact', 'file', 'group'].includes(type) ? type : 'person';
-    const kind = (opts && opts.kind) || (/[^\p{L}\p{N}_'’\s-]/u.test(clean) ? 'literal' : 'word');
+
+    const kind = requestedKind || (/[^\p{L}\p{N}_'’\s-]/u.test(clean) ? 'literal' : 'word');
     const ent = {
       id: 'ent_custom_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
       type: safeType,
       subType: safeType === 'person' ? 'name' : safeType === 'place' ? 'city' : safeType,
       primary: clean,
-      terms: [{ text: clean, caseSensitive: Boolean(opts && opts.caseSensitive), kind }],
+      terms: [{ text: clean, caseSensitive: wantCaseSensitive, kind }],
       senderKeys: [],
       isSender: false,
       typedLabel: '',
@@ -1758,6 +1823,9 @@
       samples: [],
     };
     plan.entities.push(ent);
+    if (plan.categories[safeType] === false) {
+      plan.categories[safeType] = true;
+    }
     for (const s of plan.suspects) {
       if (s.term.toLowerCase() === lo) s.dismissed = true;
     }
@@ -1914,7 +1982,7 @@
 
   // Uses Private Use Area sentinels (\uE000idx\uE001) so replaced spans are
   // immune to subsequent passes (zero cascading, ever!).
-  function runReplacer(text, plan, wantSegments) {
+  function runReplacer(text, plan, wantSegments, hitsOut) {
     const str = String(text || '');
     if (!str) return wantSegments ? { text: '', segments: [] } : '';
     const compiled = compilePlan(plan);
@@ -1923,6 +1991,9 @@
     function stash(entry) {
       const idx = tokens.length;
       tokens.push(entry);
+      if (hitsOut && entry.kind === 'replaced' && entry.entity) {
+        hitsOut.push(entry.entity);
+      }
       return '\uE000' + idx + '\uE001';
     }
 
@@ -2126,17 +2197,17 @@
     const compiled = compilePlan(plan);
     const activeEntities = plan.entities.filter((e) => isEntityActive(plan, e)).length;
 
-    // For very large chats (>15k entries), audit all stats fast and run regex leak checks across every entry
+    // Single pass per entry: collect replacement stats + anonymized output in one runReplacer call
     for (let ei = 0; ei < entries.length; ei++) {
       const e = entries[ei];
       if (!e.text) continue;
-      const hits = findEntityHitsInString(e.text, compiled);
+      const hits = [];
+      const out = runReplacer(e.text, plan, false, hits);
       if (hits.length) {
         messagesChanged++;
         totalReplacements += hits.length;
         for (const h of hits) byType[h.type] = (byType[h.type] || 0) + 1;
       }
-      const out = anonymizeString(e.text, plan);
       const scanOut = out.replace(RE_WA_PROTECTED, ' ');
 
       if (senderFragRe) {
@@ -2195,6 +2266,88 @@
     };
   }
 
+  // Fast leak verifier: ignores our own generated replacement labels, skips non-matching
+  // lines before running the replacer, and distinguishes whole-word vs inside-word hits.
+  function verifyTerm(result, plan, query) {
+    const q = String(query || '').trim();
+    const out = {
+      query: q,
+      totalLines: 0,
+      wholeWordLines: 0,
+      substringLines: 0,
+      tokens: [],
+      snippets: [],
+    };
+    if (q.length < 2 || !result || !plan) return out;
+
+    const qLo = q.toLowerCase();
+    const isLiteral = /[^\p{L}\p{N}_'’\s-]/u.test(q);
+    const esc = escapeRegExp(q);
+    const wholeRe = isLiteral
+      ? new RegExp(esc, 'i')
+      : new RegExp('(?<![\\p{L}\\p{N}_])' + esc + '(?![\\p{L}\\p{N}_])', 'iu');
+    const tokenRe = isLiteral
+      ? null
+      : new RegExp('[\\p{L}\\p{N}_]*' + esc + '[\\p{L}\\p{N}_]*', 'giu');
+
+    const sMap = senderLabelMap(plan);
+    const entries = result.entries || [];
+    const tokenCounts = new Map(); // lower -> { text, count }
+
+    for (let ei = 0; ei < entries.length; ei++) {
+      const e = entries[ei];
+      const anonSender = e.kind === 'message' ? (sMap.get(e.sender) || e.sender) : null;
+      const senderUnredacted = e.kind === 'message' && anonSender === e.sender;
+      const senderHasQ = senderUnredacted && e.sender.toLowerCase().includes(qLo);
+      const rawTextHasQ = Boolean(e.text && e.text.toLowerCase().includes(qLo));
+      if (!senderHasQ && !rawTextHasQ) continue;
+
+      const diff = rawTextHasQ ? runReplacer(e.text, plan, true) : { text: e.text || '', segments: [] };
+      const unreplaced = rawTextHasQ
+        ? diff.segments.filter((seg) => !seg.replaced).map((seg) => seg.text).join('\u0000')
+        : '';
+      const textStillHasQ = unreplaced.toLowerCase().includes(qLo);
+      if (!senderHasQ && !textStillHasQ) continue;
+
+      const hasWhole = (senderHasQ && wholeRe.test(e.sender)) || (textStillHasQ && wholeRe.test(unreplaced));
+      out.totalLines++;
+      if (hasWhole) {
+        out.wholeWordLines++;
+      } else {
+        out.substringLines++;
+        if (tokenRe) {
+          const sources = [];
+          if (senderHasQ) sources.push(e.sender);
+          if (textStillHasQ) sources.push(unreplaced);
+          for (const src of sources) {
+            tokenRe.lastIndex = 0;
+            for (const m of src.matchAll(tokenRe)) {
+              const tok = m[0];
+              const tLo = tok.toLowerCase();
+              if (tLo === qLo || tok.length < 2) continue;
+              let rec = tokenCounts.get(tLo);
+              if (!rec) {
+                rec = { text: tok, count: 0 };
+                tokenCounts.set(tLo, rec);
+              }
+              rec.count++;
+            }
+          }
+        }
+      }
+
+      if (out.snippets.length < 3) {
+        const line = e.kind === 'message' ? `${anonSender}: ${diff.text}` : diff.text;
+        out.snippets.push(line.slice(0, 140));
+      }
+    }
+
+    out.tokens = Array.from(tokenCounts.values())
+      .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text))
+      .slice(0, 6);
+    return out;
+  }
+
   return {
     createPlan,
     getLabel,
@@ -2218,5 +2371,6 @@
     wordTokenMap,
     exportText,
     auditLeaks,
+    verifyTerm,
   };
 });

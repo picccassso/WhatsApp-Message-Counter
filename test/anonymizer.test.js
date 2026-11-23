@@ -175,7 +175,75 @@ function check(label, actual, expected) {
   check('Diff identifies 2 replaced segments', diff.segments.filter((s) => s.replaced).length, 2);
 }
 
-/* ---------- 6. Performance benchmark on big_100k.txt ---------- */
+/* ---------- 6. Regression tests: scrub buttons, verifyTerm, pool overflow, iOS <attached:> ---------- */
+{
+  // 6a. Case-sensitive existing entities (bath, will, apple, uk) must be scrubbable on explicit addCustomEntity
+  const chat = [
+    '12/05/2025, 18:42 - Alex: I went to Bath yesterday and had a bath later, saw Will too, will call him',
+    '12/05/2025, 18:43 - Sam: working at Apple and eating an apple in the uk (UK)',
+    '12/05/2025, 18:44 - Alex: ask smiths and alex123 and bob_jones',
+    '12/05/2025, 18:45 - Sam: <attached: 00001-Alex_Smith_Passport.pdf>',
+  ].join('\n');
+  const r = parse(chat);
+  const plan = Anon.createPlan(r);
+
+  // Before explicit scrub, lowercase ambiguous terms remain
+  check('verifyTerm finds lowercase bath before explicit scrub', Anon.verifyTerm(r, plan, 'bath').wholeWordLines, 1);
+  check('verifyTerm finds lowercase will before explicit scrub', Anon.verifyTerm(r, plan, 'will').wholeWordLines, 1);
+  check('verifyTerm finds lowercase apple before explicit scrub', Anon.verifyTerm(r, plan, 'apple').wholeWordLines, 1);
+  check('verifyTerm finds lowercase uk before explicit scrub', Anon.verifyTerm(r, plan, 'uk').wholeWordLines, 1);
+
+  Anon.addCustomEntity(plan, 'bath', 'place', { retype: true });
+  Anon.addCustomEntity(plan, 'will', 'person', { retype: true });
+  Anon.addCustomEntity(plan, 'apple', 'org', { retype: true });
+  Anon.addCustomEntity(plan, 'uk', 'place', { retype: true });
+
+  check('explicit scrub clears caseSensitive on bath', Anon.verifyTerm(r, plan, 'bath').totalLines, 0);
+  check('explicit scrub clears caseSensitive on will', Anon.verifyTerm(r, plan, 'will').totalLines, 0);
+  check('explicit scrub clears caseSensitive on apple', Anon.verifyTerm(r, plan, 'apple').totalLines, 0);
+  check('explicit scrub clears caseSensitive on uk', Anon.verifyTerm(r, plan, 'uk').totalLines, 0);
+
+  // 6b. Disabled category gets retyped/re-enabled on explicit scrub
+  const chat2 = '12/05/2025, 18:42 - Alex: I work at Monzo in Bristol\n';
+  const r2 = parse(chat2);
+  const plan2 = Anon.createPlan(r2);
+  Anon.setCategoryEnabled(plan2, 'org', false);
+  check('Monzo appears when org category is disabled', Anon.verifyTerm(r2, plan2, 'Monzo').wholeWordLines, 1);
+  Anon.addCustomEntity(plan2, 'Monzo', 'person', { retype: true });
+  check('Scrub as Person moves/activates Monzo even when org category was off', Anon.verifyTerm(r2, plan2, 'Monzo').totalLines, 0);
+
+  // 6c. Substring detection & literal upgrade
+  const subRes = Anon.verifyTerm(r, plan, 'bob');
+  check('verifyTerm classifies bob_jones as substring hit', subRes.wholeWordLines === 0 && subRes.substringLines === 1, true);
+  check('verifyTerm extracts containing token bob_jones', subRes.tokens.some((t) => t.text === 'bob_jones'), true);
+  Anon.addCustomEntity(plan, 'bob', 'person', { kind: 'literal', retype: true });
+  check('literal scrub removes substring bob inside bob_jones', Anon.verifyTerm(r, plan, 'bob').totalLines, 0);
+
+  // 6d. iOS <attached: filename> is auto-scrubbed while keeping <attached: > marker
+  const outIos = Anon.exportText(r, plan);
+  check('iOS <attached: > marker preserved', outIos.includes('<attached: '), true);
+  check('iOS attached filename Passport scrubbed', outIos.includes('Passport'), false);
+  check('verifyTerm reports 0 leaks for Passport', Anon.verifyTerm(r, plan, 'Passport').totalLines, 0);
+
+  // 6e. Pool exhaustion (>80 people, >40 orgs) never re-introduces real chat words & verifyTerm ignores generated labels
+  const manyLines = [];
+  for (let i = 0; i < 85; i++) {
+    manyLines.push(`12/05/2025, 18:42 - Sender${i}: met Jordan and Taylor and Northstar and Al and Ed`);
+  }
+  const rMany = parse(manyLines.join('\n'));
+  const planMany = Anon.createPlan(rMany, { mode: 'realistic', seed: 1 });
+  for (let i = 0; i < 40; i++) Anon.addCustomEntity(planMany, 'ExtraOrg' + i, 'org');
+  const labelsMany = planMany.entities.map((e) => Anon.getLabel(planMany, e).toLowerCase());
+  check('Realistic pool overflow never reuses real name Jordan', labelsMany.some((l) => l.includes('jordan')), false);
+  check('Realistic pool overflow never reuses real name Taylor', labelsMany.some((l) => l.includes('taylor')), false);
+  check('Realistic pool overflow never reuses real org Northstar', labelsMany.some((l) => l.includes('northstar')), false);
+
+  Anon.setMode(planMany, 'typed');
+  Anon.addCustomEntity(planMany, 'Al', 'person', { retype: true });
+  check('Typed mode Person AL label does not false-positive in verifyTerm for Al', Anon.verifyTerm(rMany, planMany, 'Al').totalLines, 0);
+}
+
+/* ---------- 7. Performance benchmark on big_100k.txt ---------- */
 {
   const bigPath = path.join(__dirname, 'fixtures', 'big_100k.txt');
   if (fs.existsSync(bigPath)) {
